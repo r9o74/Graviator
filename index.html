@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Fugaz+One&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Babel for in-browser JSX/TS compilation (Essential for GitHub Pages without build tools) -->
+    <!-- Babel: .tsxファイルをブラウザで実行可能にするためのトランスパイラ -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
@@ -23,21 +23,20 @@
             color: white;
         }
         
-        /* Error display for debugging */
         #error-display {
             position: fixed;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(255, 0, 0, 0.8);
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 0, 0, 0.9);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 20px;
             font-family: monospace;
-            z-index: 9999;
+            z-index: 99999;
             display: none;
-            font-size: 12px;
-            max-width: 90vw;
-            word-break: break-all;
+            box-sizing: border-box;
+            max-height: 50vh;
+            overflow-y: auto;
         }
         
         ::-webkit-scrollbar { display: none; }
@@ -49,23 +48,31 @@
     <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
 
     <script>
-        // Debugger: Catch errors and show them on screen
+        // エラーが発生した際に画面上に表示する
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             const display = document.getElementById('error-display');
             if (display) {
                 display.style.display = 'block';
-                display.innerHTML += `<div>Error: ${msg} <br/>@ ${url}:${lineNo}</div>`;
+                display.innerHTML += `<div>[Error] ${msg}<br/><small>at ${url}:${lineNo}:${columnNo}</small></div><hr/>`;
             }
             return false;
+        };
+        // Promiseの拒否もキャッチ
+        window.onunhandledrejection = function(event) {
+            const display = document.getElementById('error-display');
+            if (display) {
+                display.style.display = 'block';
+                display.innerHTML += `<div>[Unhandled Rejection] ${event.reason}</div><hr/>`;
+            }
         };
     </script>
 </head>
@@ -74,13 +81,13 @@
     <div id="error-display"></div>
 
     <!-- 
-      Notice: We use type="text/babel" and data-type="module" so Babel can handle the JSX and ESM imports.
-      The data-presets ensures it understands React and TypeScript.
+      CRITICAL: data-type="module" を指定することで、Babelがimport構文を正しく処理します。
+      また、presetsにtypescriptとreactを指定して .tsx を解釈させます。
     -->
     <script 
         type="text/babel" 
         data-type="module" 
-        data-presets="react,typescript" 
+        data-presets="typescript,react" 
         src="index.tsx">
     </script>
 </body>
