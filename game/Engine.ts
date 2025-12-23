@@ -174,29 +174,41 @@ export class GameEngine {
         this.ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
         this.onStateChange = onStateChange;
         this.onStatsUpdate = onStatsUpdate;
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
+        
+        // Ensure parent is ready
+        setTimeout(() => {
+            this.resize();
+            window.addEventListener('resize', () => this.resize());
+        }, 100);
     }
 
     resize() {
         const parent = this.canvas.parentElement;
         if (parent) {
+            // Check if parent has size yet
+            const w = parent.clientWidth || window.innerWidth;
+            const h = parent.clientHeight || window.innerHeight;
+            
             this.dpr = window.devicePixelRatio || 1;
-            this.width = parent.clientWidth;
-            this.height = parent.clientHeight;
+            this.width = w;
+            this.height = h;
             this.canvas.width = this.width * this.dpr;
             this.canvas.height = this.height * this.dpr;
             this.canvas.style.width = `${this.width}px`;
             this.canvas.style.height = `${this.height}px`;
+            
+            this.ctx.resetTransform();
             this.ctx.scale(this.dpr, this.dpr);
+            
             const minDimension = Math.min(this.width, this.height);
-            this.scaleFactor = minDimension / BASE_LOGICAL_SIZE;
+            this.scaleFactor = Math.max(0.1, minDimension / BASE_LOGICAL_SIZE);
             this.logicalWidth = this.width / this.scaleFactor;
             this.logicalHeight = this.height / this.scaleFactor;
         }
     }
 
     start() {
+        this.resize(); // One more resize to be sure
         this.entities = [];
         this.particles = [];
         this.shakeIntensity = 0;
@@ -204,9 +216,11 @@ export class GameEngine {
         this.startTime = Date.now();
         this.maxSpeedRecorded = 0;
         this.maxGravityRecorded = 0;
+        
         const playerX = this.logicalWidth / 2;
         const playerY = this.logicalHeight / 2;
         this.entities.push(new Entity(playerX, playerY, true));
+        
         const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
         for (let i = 0; i < this.initialEnemyCount; i++) {
             let x = 0, y = 0, attempts = 0, validPosition = false;
@@ -219,6 +233,7 @@ export class GameEngine {
             }
             this.entities.push(new Entity(x, y, false));
         }
+        
         this.setGameState(GameState.PLAYING);
         this.lastTime = performance.now();
         this.loop(this.lastTime);
@@ -233,12 +248,12 @@ export class GameEngine {
             this.shakeIntensity = 40; 
             this.shakeDecay = 0.92;
             this.flashOpacity = 0.8;
-            this.flashColor = '#FF0000'; // 失敗時は赤
+            this.flashColor = '#FF0000';
         } else if (state === GameState.VICTORY && prevState === GameState.PLAYING) {
             this.shakeIntensity = 20; 
             this.shakeDecay = 0.96;
             this.flashOpacity = 0.5;
-            this.flashColor = '#00FFFF'; // 勝利時はシアン
+            this.flashColor = '#00FFFF';
             this.triggerVictoryBurst();
         }
     }
@@ -257,7 +272,6 @@ export class GameEngine {
     }
 
     triggerEliminationEffect(entity: Entity) {
-        // 場外脱落時の衝撃演出
         const count = entity.isPlayer ? 500 : 600;
         const intensity = entity.isPlayer ? 40 : 50;
         
@@ -336,7 +350,6 @@ export class GameEngine {
     }
 
     update(dt: number) {
-        // Update shake & flash
         if (this.shakeIntensity > 0.1) this.shakeIntensity *= this.shakeDecay;
         else this.shakeIntensity = 0;
         
@@ -412,7 +425,6 @@ export class GameEngine {
 
         this.entities.forEach(e => e.update(dt));
         
-        // Check for boundary collisions for ALL entities
         this.entities.forEach(e => {
             if (e.pos.x < 0 || e.pos.x > this.logicalWidth || e.pos.y < 0 || e.pos.y > this.logicalHeight) {
                 this.triggerEliminationEffect(e);
@@ -420,7 +432,6 @@ export class GameEngine {
             }
         });
 
-        // Filtering out-of-bound entities
         this.entities = this.entities.filter(e => e.pos.x > 0 && e.pos.x < this.logicalWidth && e.pos.y > 0 && e.pos.y < this.logicalHeight);
         
         this.particles.forEach(p => p.update(dt));
@@ -449,13 +460,14 @@ export class GameEngine {
     }
 
     draw() {
+        if (!this.width || !this.height) return;
+
         this.ctx.clearRect(0, 0, this.width, this.height);
         this.ctx.fillStyle = '#050505';
         this.ctx.fillRect(0, 0, this.width, this.height);
         
         this.ctx.save();
 
-        // Apply Screen Shake
         if (this.shakeIntensity > 0) {
             const sx = (Math.random() - 0.5) * this.shakeIntensity;
             const sy = (Math.random() - 0.5) * this.shakeIntensity;
@@ -471,7 +483,6 @@ export class GameEngine {
         this.entities.forEach(e => e.draw(this.ctx, this.scaleFactor));
         this.ctx.restore();
 
-        // Apply Impact Flash
         if (this.flashOpacity > 0) {
             this.ctx.save();
             this.ctx.globalAlpha = this.flashOpacity;
