@@ -1,5 +1,5 @@
-import { Vector2 } from './Vector2';
-import { InputState, GameState, GameStats } from '../types';
+import { Vector2 } from './Vector2.ts';
+import { InputState, GameState, GameStats } from '../types.ts';
 
 // Constants
 const PLAYER_RADIUS = 12.0;

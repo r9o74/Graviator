@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GameEngine } from './game/Engine';
-import { GameState, InputState, GameStats } from './types';
-import MenuOverlay from './components/MenuOverlay';
-import InfoPanel from './components/InfoPanel';
-import VirtualJoystick from './components/VirtualJoystick';
+import { GameEngine } from './game/Engine.ts';
+import { GameState, InputState, GameStats } from './types.ts';
+import MenuOverlay from './components/MenuOverlay.tsx';
+import InfoPanel from './components/InfoPanel.tsx';
+import VirtualJoystick from './components/VirtualJoystick.tsx';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
