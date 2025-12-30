@@ -5,6 +5,11 @@ export enum GameState {
     VICTORY = 'VICTORY'
 }
 
+export enum GameMode {
+    SURVIVAL = 'SURVIVAL',
+    ENDLESS = 'ENDLESS'
+}
+
 export interface InputState {
     up: boolean;
     down: boolean;
@@ -21,6 +26,7 @@ export interface GameConfig {
 }
 
 export interface GameStats {
+    mode: GameMode;
     speed: number;
     gravityForce: number;
     maxSpeed: number;
@@ -29,4 +35,5 @@ export interface GameStats {
     initialEnemies: number;
     timeSurvived: number;
     dangerLevel: number; // 0-100% based on proximity to walls/enemies
+    kills: number;
 }

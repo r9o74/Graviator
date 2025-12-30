@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './game/Engine.ts';
-import { GameState, InputState, GameStats } from './types.ts';
+import { GameState, InputState, GameStats, GameMode } from './types.ts';
 import MenuOverlay from './components/MenuOverlay.tsx';
 import InfoPanel from './components/InfoPanel.tsx';
 import VirtualJoystick from './components/VirtualJoystick.tsx';
@@ -11,6 +11,11 @@ function App() {
     const [gameState, setGameState] = useState<GameState>(GameState.MENU);
     const [gameStats, setGameStats] = useState<GameStats | null>(null);
     
+    // 現在選択されているモードをステートとRefの両方で管理
+    // StateはUI表示用、Refはイベントリスナー内での最新値参照用
+    const [currentMode, setCurrentMode] = useState<GameMode>(GameMode.SURVIVAL);
+    const currentModeRef = useRef<GameMode>(GameMode.SURVIVAL);
+    
     // State Ref for Event Listeners
     const gameStateRef = useRef<GameState>(GameState.MENU);
     
@@ -18,15 +23,21 @@ function App() {
     const keyboardInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
     const joystickInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
 
-    // Sync state to ref
+    // Sync state to refs
     useEffect(() => {
         gameStateRef.current = gameState;
     }, [gameState]);
 
-    const handleStartGame = () => {
+    const handleStartGame = (mode: GameMode = GameMode.SURVIVAL) => {
+        setCurrentMode(mode);
+        currentModeRef.current = mode;
         if (engineRef.current) {
-            engineRef.current.start();
+            engineRef.current.start(mode);
         }
+    };
+
+    const handleGoHome = () => {
+        setGameState(GameState.MENU);
     };
 
     // Merge inputs and send to engine
@@ -41,7 +52,6 @@ function App() {
             down: k.down || j.down,
             left: k.left || j.left,
             right: k.right || j.right,
-            // アナログベクトルを優先的に引き継ぐ
             vector: j.vector 
         };
 
@@ -56,7 +66,7 @@ function App() {
     useEffect(() => {
         if (!canvasRef.current) return;
 
-        // Initialize Engine
+        // Initialize Engine once
         const engine = new GameEngine(
             canvasRef.current, 
             (state) => {
@@ -84,7 +94,8 @@ function App() {
             if (e.key === 'Enter' || e.code === 'Space') {
                 const current = gameStateRef.current;
                 if (current === GameState.MENU || current === GameState.GAME_OVER || current === GameState.VICTORY) {
-                    if (engineRef.current) engineRef.current.start();
+                    // Refから最新のモードを取得してスタート
+                    if (engineRef.current) engineRef.current.start(currentModeRef.current);
                 }
             }
         };
@@ -100,7 +111,7 @@ function App() {
             window.removeEventListener('keyup', onKeyUp);
             engine.stop();
         };
-    }, []);
+    }, []); // 依存配列を空に。エンジンは一度だけ生成。
 
     return (
         <div className="relative w-screen h-screen bg-black overflow-hidden select-none flex flex-col landscape:flex-row">
@@ -109,7 +120,6 @@ function App() {
                 <div className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                     <InfoPanel stats={gameStats} />
                 </div>
-                {/* Joystick at the bottom of sidebar, slightly shorter to accommodate stats */}
                 <div className="w-full h-32 shrink-0 border-t border-white/5 bg-[#050505] flex items-center justify-center relative z-40">
                      <VirtualJoystick onInput={handleJoystickInput} />
                 </div>
@@ -125,7 +135,12 @@ function App() {
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black opacity-80 z-0"></div>
                 <canvas ref={canvasRef} className="absolute inset-0 z-10 block" />
                 <div className="absolute inset-0 pointer-events-none z-20 shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]"></div>
-                <MenuOverlay gameState={gameState} onStart={handleStartGame} />
+                <MenuOverlay 
+                    gameState={gameState} 
+                    onStart={handleStartGame} 
+                    onHome={handleGoHome} 
+                    gameStats={gameStats}
+                />
             </div>
 
             {/* Bottom Bar Joystick (Portrait) */}

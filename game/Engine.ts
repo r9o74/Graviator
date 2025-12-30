@@ -1,30 +1,165 @@
 import { Vector2 } from './Vector2.ts';
-import { InputState, GameState, GameStats } from '../types.ts';
+import { InputState, GameState, GameStats, GameMode } from '../types.ts';
+import { AudioManager } from './AudioManager.ts';
+
+// デバイス検知
+const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // Constants
 const PLAYER_RADIUS = 12.0;
 const ENTITY_MASS = 10.0;
-const GRAVITY_CONSTANT = 45000.0;
-const GRAVITY_MAX = 300000.0;
-const THRUST_FORCE = 1500.0;
+const GRAVITY_CONSTANT = 40000.0;
+const GRAVITY_MAX = 250000.0;
+const THRUST_FORCE = 1800.0;
 const CPU_THRUST_FORCE = 1800.0;
-const BREAKING_CONSTANT = 2;
-const WALL_MARGIN = 150;
-const BREAK_BOOST = 25;
-const ENEMY_NUMBER = 7;
-const SAFE_DISTANCE = 150;
-const DIST_EXP = 0.87;
+const BREAKING_CONSTANT = 2; // 減速力倍率
+const WALL_MARGIN = 150; // 減速力強化エリア範囲
+const BREAK_BOOST = 20; // WALL_MARGIN / BREAK_BOOST = 最大倍率増加量
+const ENEMY_NUMBER_SURVIVAL = 10;
+const ENEMY_NUMBER_ENDLESS = 5;
+const SAFE_DISTANCE = 200;
+const DIST_EXP = 0.88; // 万有引力の式の分母の冪数（DIST_EXP = 1.0 で通常の物理法則）
 const G_LINE_WIDTH = 1;
 const TRAIL_WIDTH = PLAYER_RADIUS / 1.8;
+const FRICTION = 0.000;
+const FRICTION_VEL_EXP = 0.0;
 
-const BASE_LOGICAL_SIZE = 800;
-const TRAIL_LENGTH = 150;
-const COLOR_PLAYER = '#00F0FF';
-const COLOR_ENEMY = '#FF0055';
-const COLOR_PARTICLE = '#FFFFFF';
 
-const PARTICLE_PHYSICAL_RADIUS = 1.5; 
-const LABEL_PHYSICAL_FONT_SIZE = 14;
+const BASE_LOGICAL_SIZE = IS_MOBILE ? 800 : 700;
+const TRAIL_LENGTH = 100; 
+const COLOR_PLAYER = '#00F0FF'; // シアン
+const COLOR_ENEMY = '#FF0055'; // マゼンタ
+const COLOR_PARTICLE = '#FFFFFF'; // 白
+const COLOR_ITEM_MASS = '#FFD700'; // 黄色
+const COLOR_ITEM_SATELLITE = '#E0E0E0'; // 白
+const COLOR_ITEM_STEALTH = '#646464'; // 灰色
+const COLOR_ITEM_WAVE = '#BF40BF'; // 紫
+const COLOR_ITEM_INVERSION = '#32CD32'; // 緑
+const COLOR_ITEM_REPULSIVE = '#FF3300'; // 赤
+
+const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ
+const LABEL_PHYSICAL_FONT_SIZE = 14; // アイテム使用状況ラベルのフォントサイズ
+
+// アイテム設定
+const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
+const ITEM_AREA_RADIUS = 25; // アイテムの当たり判定の大きさ
+const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
+const ITEM_SPAWN_INTERVAL_MIN = 2.0;
+const ITEM_SPAWN_INTERVAL_MAX = 8.0;
+
+
+// 質量増加：衛星：透明化：重力波：反転：軌斥
+const item_ratio = [1, 1, 1, 1, 1, 1]; // アイテム出現比率
+
+
+// 質量増加
+const POWERUP_DURATION = 6.0;
+const MASS_BOOST_MULTIPLIER = 7.0;
+
+// 衛星
+const SATELLITE_MASS = 10.0;
+const SATELLITE_RADIUS = 6.0;
+const SATELLITE_THRUST = 3000.0;
+const SATELLITE_NUM = 7;
+const SATELLITE_TRAIL_LENGTH = 50;
+
+// 透明化
+const STEALTH_FADE_DURATION = 1.0;
+const STEALTH_INVIS_DURATION = 8.0; 
+const STEALTH_TOTAL_DURATION = STEALTH_FADE_DURATION * 2 + STEALTH_INVIS_DURATION;
+const GRAVITY_REDUCTION = 0.30; 
+
+// 重力波
+const WAVE_SPEED = 800.0;
+const WAVE_FORCE = 45000.0;
+const WAVE_DURATION = 0.15;
+const WAVE_INTERVAL = 1.0;
+const WAVE_MAX_RADIUS = 700.0; // 射程
+
+// 反転
+const INVERSION_DURATION = 8.0;
+const INVERSION_MULTIPLE_1 = 5.0; // 自分 -> 敵
+const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分
+
+// 軌斥 (Repulsive Trail)
+const REPULSIVE_TRAIL_DURATION = 6.0;
+const REPULSIVE_TRAIL_RESTITUTION = 2.0; // 法線方向反発係数
+const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.5; // 接線方向反発係数
+const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ
+
+
+
+enum ItemType {
+    MASS_BOOST,
+    SATELLITE,
+    INVISIBILITY,
+    GRAVITY_WAVE,
+    INVERSION,
+    REPULSIVE_TRAIL
+}
+
+interface Point { x: number; y: number; isRepulsive?: boolean; }
+interface SpawnWarning { x: number; y: number; timer: number; }
+
+class GravityWave {
+    origin: Vector2;
+    radius: number = 0;
+    owner: Entity;
+    hitEntities: Set<Entity> = new Set();
+    life: number = 1.0;
+
+    constructor(x: number, y: number, owner: Entity) {
+        this.origin = new Vector2(x, y);
+        this.owner = owner;
+    }
+
+    update(dt: number, entities: Entity[]) {
+        this.radius += WAVE_SPEED * dt;
+        this.life = 1.0 - (this.radius / WAVE_MAX_RADIUS);
+        if (this.life <= 0) return;
+
+        for (const entity of entities) {
+            if (entity === this.owner || entity.owner === this.owner || this.hitEntities.has(entity)) continue;
+            
+            const dx = entity.pos.x - this.origin.x;
+            const dy = entity.pos.y - this.origin.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (Math.abs(dist - this.radius) < 20) {
+                const angle = Math.atan2(dy, dx);
+                const dir = new Vector2(Math.cos(angle), Math.sin(angle));
+                const decay = Math.max(0.2, this.life);
+                
+                // Inverted targets are PULLED towards the center
+                const forceMagnitude = entity.isInversionActive() ? -WAVE_FORCE : WAVE_FORCE;
+                
+                entity.waveForce = dir.scale(forceMagnitude * decay);
+                entity.waveForceTimer = WAVE_DURATION;
+                this.hitEntities.add(entity);
+            }
+        }
+    }
+
+    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
+        if (this.life <= 0) return;
+        ctx.save();
+        const color = '191, 64, 191';
+        ctx.beginPath();
+        ctx.arc(this.origin.x, this.origin.y, Math.max(0, this.radius), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${color}, ${Math.min(this.life * 1.2, 0.8)})`;
+        ctx.lineWidth = 10 / scaleFactor;
+        ctx.stroke();
+        const innerRadius = this.radius - 15;
+        if (innerRadius > 0) {
+            ctx.beginPath();
+            ctx.arc(this.origin.x, this.origin.y, innerRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(${color}, ${this.life * 0.3})`;
+            ctx.lineWidth = 4 / scaleFactor;
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
 
 class Particle {
     pos: Vector2;
@@ -32,7 +167,6 @@ class Particle {
     life: number;
     maxLife: number;
     color: string;
-
     constructor(x: number, y: number, vel: Vector2, color: string = COLOR_PARTICLE, lifeMultiplier: number = 1.0) {
         this.pos = new Vector2(x, y);
         this.vel = vel;
@@ -40,13 +174,13 @@ class Particle {
         this.maxLife = (0.2 + Math.random() * 0.4) * lifeMultiplier;
         this.color = color;
     }
-
     update(dt: number) {
-        this.pos = this.pos.add(this.vel.scale(dt));
+        this.pos.x += this.vel.x * dt;
+        this.pos.y += this.vel.y * dt;
         this.life -= dt / this.maxLife;
     }
-
     draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
+        if (this.life <= 0.01) return;
         ctx.globalAlpha = Math.max(0, this.life) * 0.9;
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -57,170 +191,327 @@ class Particle {
     }
 }
 
-class Entity {
+class Item {
     pos: Vector2;
-    vel: Vector2;
-    acc: Vector2;
-    radius: number;
-    mass: number;
-    color: string;
-    isPlayer: boolean;
-    isCpu: boolean;
-    breakingValue: number; 
-    trail: Vector2[];
-
-    constructor(x: number, y: number, isPlayer: boolean) {
+    type: ItemType;
+    angle: number = 0;
+    constructor(x: number, y: number, type: ItemType) {
         this.pos = new Vector2(x, y);
-        this.vel = new Vector2();
-        this.acc = new Vector2();
-        this.radius = PLAYER_RADIUS;
-        this.mass = ENTITY_MASS;
-        this.isPlayer = isPlayer;
-        this.isCpu = !isPlayer;
-        this.color = isPlayer ? COLOR_PLAYER : COLOR_ENEMY;
-        this.breakingValue = 0;
-        this.trail = [];
+        this.type = type;
     }
+    update(dt: number) {
+        this.angle += dt * 3;
+    }
+    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
+        ctx.save();
+        ctx.translate(this.pos.x, this.pos.y);
+        ctx.rotate(this.angle);
+        let color = COLOR_ITEM_MASS;
+        if (this.type === ItemType.SATELLITE) color = COLOR_ITEM_SATELLITE;
+        else if (this.type === ItemType.INVISIBILITY) color = COLOR_ITEM_STEALTH;
+        else if (this.type === ItemType.GRAVITY_WAVE) color = COLOR_ITEM_WAVE;
+        else if (this.type === ItemType.INVERSION) color = COLOR_ITEM_INVERSION;
+        else if (this.type === ItemType.REPULSIVE_TRAIL) color = COLOR_ITEM_REPULSIVE;
+        const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
+        ctx.shadowBlur = 15 + pulse * 10;
+        ctx.shadowColor = color;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        const size = ITEM_RADIUS;
+        if (this.type === ItemType.MASS_BOOST) {
+            ctx.moveTo(0, -size); ctx.lineTo(size * 0.7, 0); ctx.lineTo(0, size); ctx.lineTo(-size * 0.7, 0);
+        } else if (this.type === ItemType.SATELLITE) {
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const r = size * (0.8 + pulse * 0.1);
+                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+            }
+        } else if (this.type === ItemType.INVISIBILITY) {
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                const r = size * (0.6 + pulse * 0.4);
+                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+            }
+        } else if (this.type === ItemType.GRAVITY_WAVE) {
+             ctx.arc(0, 0, size * (0.5 + pulse * 0.2), 0, Math.PI * 2); ctx.moveTo(size, 0); ctx.arc(0, 0, size, 0, Math.PI * 2);
+        } else if (this.type === ItemType.INVERSION) {
+            ctx.moveTo(0, size); ctx.lineTo(size, -size * 0.6); ctx.lineTo(-size, -size * 0.6);
+        } else if (this.type === ItemType.REPULSIVE_TRAIL) {
+            const spikes = 5;
+            for (let i = 0; i < spikes * 2; i++) {
+                const angle = (i / (spikes * 2)) * Math.PI * 2;
+                const r = size * (i % 2 === 0 ? 1.0 : 0.4);
+                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+            }
+        }
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2 / scaleFactor; ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class Entity {
+    pos: Vector2; vel: Vector2; acc: Vector2; radius: number; mass: number; color: string; isPlayer: boolean; isCpu: boolean; breakingValue: number; trail: Point[];
+    massMultiplier: number = 1.0;
+    thrustMultiplier: number = 1.0;
+    powerupTimer: number = 0;
+    stealthTimer: number = 0;
+    stealthOpacity: number = 1.0;
+    inversionTimer: number = 0;
+    repulsiveTrailTimer: number = 0;
+    waveChargeCount: number = 0;
+    waveChargeTimer: number = 0;
+    waveForce: Vector2 = new Vector2();
+    waveForceTimer: number = 0;
+    isSatellite: boolean = false;
+    owner: Entity | null = null;
+    
+    constructor(x: number, y: number, isPlayer: boolean, isSatellite: boolean = false, owner: Entity | null = null) {
+        this.pos = new Vector2(x, y); this.vel = new Vector2(); this.acc = new Vector2();
+        this.isSatellite = isSatellite; this.owner = owner;
+        this.radius = isSatellite ? SATELLITE_RADIUS : PLAYER_RADIUS;
+        this.mass = isSatellite ? SATELLITE_MASS : ENTITY_MASS;
+        this.isPlayer = isPlayer; this.isCpu = !isPlayer && !isSatellite;
+        this.color = isSatellite ? '#FFFFFF' : (isPlayer ? COLOR_PLAYER : COLOR_ENEMY);
+        this.breakingValue = 0; this.trail = [];
+    }
+    
+    getCurrentMass(): number { return this.mass * this.massMultiplier; }
 
     applyForce(force: Vector2) {
-        this.acc = this.acc.add(force.scale(1 / this.mass));
+        this.acc.x += force.x / this.getCurrentMass();
+        this.acc.y += force.y / this.getCurrentMass();
+    }
+
+    isStealthActive(): boolean { return this.stealthTimer > 0; }
+    isInversionActive(): boolean { return this.inversionTimer > 0; }
+    isTargetable(): boolean {
+        if (this.isPlayer) return this.stealthTimer <= 0;
+        return this.stealthOpacity > 0.1;
     }
 
     update(dt: number) {
-        this.vel = this.vel.add(this.acc.scale(dt));
-        this.pos = this.pos.add(this.vel.scale(dt));
-        this.acc = new Vector2();
-
-        if (this.trail.length > TRAIL_LENGTH) {
-            this.trail.shift();
+        if (this.powerupTimer > 0) {
+            this.powerupTimer -= dt;
+            if (this.powerupTimer <= 0) { this.massMultiplier = 1.0; this.thrustMultiplier = 1.0; }
         }
-        this.trail.push(this.pos.clone());
+        if (this.inversionTimer > 0) this.inversionTimer -= dt;
+        
+        // Repulsive Trail Logic
+        if (this.repulsiveTrailTimer > 0) {
+            this.repulsiveTrailTimer -= dt;
+            if (this.repulsiveTrailTimer <= 0) {
+                this.repulsiveTrailTimer = 0;
+                // Clear repulsive flag from all trail segments upon expiry
+                this.trail.forEach(p => p.isRepulsive = false);
+                // Reduce trail length immediately to avoid lingering long trail
+                if (this.trail.length > TRAIL_LENGTH) {
+                    this.trail = this.trail.slice(this.trail.length - TRAIL_LENGTH);
+                }
+            }
+        }
+
+        if (this.stealthTimer > 0) {
+            this.stealthTimer -= dt;
+            const elapsed = STEALTH_TOTAL_DURATION - this.stealthTimer;
+            if (this.isPlayer) this.stealthOpacity = 0.30;
+            else {
+                if (elapsed < STEALTH_FADE_DURATION) this.stealthOpacity = 1.0 - (elapsed / STEALTH_FADE_DURATION);
+                else if (this.stealthTimer < STEALTH_FADE_DURATION) this.stealthOpacity = 1.0 - (this.stealthTimer / STEALTH_FADE_DURATION);
+                else this.stealthOpacity = 0;
+            }
+            if (this.stealthTimer <= 0) { this.stealthOpacity = 1.0; this.stealthTimer = 0; }
+        } else { this.stealthOpacity = 1.0; }
+        if (this.waveForceTimer > 0) { this.applyForce(this.waveForce); this.waveForceTimer -= dt; }
+        
+        // Apply acceleration
+        this.vel.x += this.acc.x * dt; 
+        this.vel.y += this.acc.y * dt;
+        
+        // Apply friction
+        const speed = this.vel.length();
+        if (speed > 0) {
+            const frictionForceMagnitude = FRICTION * Math.pow(speed, FRICTION_VEL_EXP);
+            const frictionAccMagnitude = frictionForceMagnitude / this.getCurrentMass();
+            const frictionDecel = frictionAccMagnitude * dt;
+            
+            // Prevent reversing direction due to discrete time step
+            if (frictionDecel >= speed) {
+                this.vel.x = 0;
+                this.vel.y = 0;
+            } else {
+                const factor = (speed - frictionDecel) / speed;
+                this.vel.x *= factor;
+                this.vel.y *= factor;
+            }
+        }
+
+        // Apply velocity
+        this.pos.x += this.vel.x * dt; 
+        this.pos.y += this.vel.y * dt;
+        
+        this.acc.x = 0; this.acc.y = 0;
+        
+        // Trail management
+        const maxLen = this.repulsiveTrailTimer > 0 ? TRAIL_LENGTH_EXTENDED : this.isSatellite ? SATELLITE_TRAIL_LENGTH : TRAIL_LENGTH;
+        if (this.trail.length > maxLen) this.trail.shift();
+        this.trail.push({ 
+            x: this.pos.x, 
+            y: this.pos.y,
+            isRepulsive: this.repulsiveTrailTimer > 0
+        });
     }
 
     draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        if (this.trail.length > 1) {
-            ctx.beginPath();
-            ctx.moveTo(this.trail[0].x, this.trail[0].y);
-            for (let i = 1; i < this.trail.length; i++) {
-                const point = this.trail[i];
-                ctx.lineTo(point.x, point.y);
+        if (this.stealthOpacity <= 0 && this.repulsiveTrailTimer <= 0) return;
+
+        const isPowered = this.massMultiplier > 1.0;
+        const isInverted = this.isInversionActive();
+        
+        // 本体描画：透明度の影響を受ける
+        ctx.save(); 
+        ctx.globalAlpha = this.stealthOpacity;
+
+        const stealthTrailAlpha = this.stealthOpacity;
+        const blurFactor = (this.isPlayer && this.isStealthActive()) ? 0 : 1.0;
+
+        if (this.trail.length > 1 && (stealthTrailAlpha > 0 || this.repulsiveTrailTimer > 0)) {
+            // Normal Trail
+            if (stealthTrailAlpha > 0) {
+                ctx.beginPath();
+                let moved = false;
+                for (let i = 0; i < this.trail.length; i++) {
+                    if (this.trail[i].isRepulsive) {
+                        if (moved) ctx.stroke();
+                        moved = false;
+                        ctx.beginPath(); // Break path
+                        continue; 
+                    }
+                    if (!moved) { ctx.moveTo(this.trail[i].x, this.trail[i].y); moved = true; }
+                    else { ctx.lineTo(this.trail[i].x, this.trail[i].y); }
+                }
+                if (moved) {
+                    const gradient = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.pos.x, this.pos.y);
+                    gradient.addColorStop(0, 'rgba(0,0,0,0)'); 
+                    gradient.addColorStop(1, this.color);
+                    ctx.strokeStyle = gradient; 
+                    ctx.lineWidth = isPowered ? TRAIL_WIDTH * 2 : (this.isSatellite ? TRAIL_WIDTH * 0.8 : TRAIL_WIDTH);
+                    ctx.lineCap = 'round'; 
+                    ctx.lineJoin = 'round'; 
+                    ctx.stroke();
+                }
             }
-            const gradient = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.pos.x, this.pos.y);
-            gradient.addColorStop(0, 'rgba(0,0,0,0)');
-            gradient.addColorStop(1, this.color);
-            ctx.strokeStyle = gradient;
-            ctx.lineWidth = TRAIL_WIDTH;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.stroke();
+
+            // Repulsive Trail (Red, vibrating)
+            if (this.repulsiveTrailTimer > 0) {
+                ctx.save();
+                ctx.globalAlpha = 1.0; // Repulsive trail is always visible even in stealth
+                ctx.shadowColor = COLOR_ITEM_REPULSIVE;
+                ctx.shadowBlur = 10;
+                ctx.strokeStyle = COLOR_ITEM_REPULSIVE;
+                ctx.lineWidth = TRAIL_WIDTH * 1.5;
+                
+                ctx.beginPath();
+                let rMoved = false;
+                for (let i = 0; i < this.trail.length; i++) {
+                    if (!this.trail[i].isRepulsive) {
+                        if (rMoved) ctx.stroke();
+                        rMoved = false;
+                        ctx.beginPath();
+                        continue;
+                    }
+                    const jitterX = (Math.random() - 0.5) * 3;
+                    const jitterY = (Math.random() - 0.5) * 3;
+                    if (!rMoved) { ctx.moveTo(this.trail[i].x + jitterX, this.trail[i].y + jitterY); rMoved = true; }
+                    else { ctx.lineTo(this.trail[i].x + jitterX, this.trail[i].y + jitterY); }
+                }
+                if (rMoved) ctx.stroke();
+                ctx.restore();
+            }
         }
 
-        ctx.shadowBlur = 30;
-        ctx.shadowColor = this.color;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (this.stealthOpacity > 0) {
+            if (isPowered || this.isSatellite || isInverted) {
+                const auraPulse = (Math.sin(Date.now() / 100) + 1) / 2;
+                ctx.shadowBlur = ((this.isSatellite ? 10 : 30) + auraPulse * 20) * blurFactor;
+                ctx.shadowColor = isInverted ? COLOR_ITEM_INVERSION : this.color;
+                if (isPowered || isInverted) {
+                    ctx.strokeStyle = isInverted ? COLOR_ITEM_INVERSION : this.color;
+                    ctx.lineWidth = 4 / scaleFactor; ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, this.radius * (1.5 + auraPulse * 0.3), 0, Math.PI * 2); ctx.stroke();
+                }
+            }
+            ctx.shadowBlur = (isPowered ? 40 : (this.isSatellite ? 15 : 30)) * blurFactor;
+            ctx.shadowColor = this.color; ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, isPowered ? this.radius * 1.2 : this.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0; ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, (isPowered ? this.radius * 1.2 : this.radius) * 0.4, 0, Math.PI * 2); ctx.fill();
+        }
+        
+        ctx.restore(); // 本体描画終了、不透明度設定リセット
 
-        ctx.shadowBlur = 0;
-        ctx.shadowColor = '#FFFFFF';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(this.pos.x, this.pos.y, this.radius * 0.4, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (this.isPlayer) {
-            ctx.shadowBlur = 0;
+        // ラベル描画：透明度の影響を受けない（特にプレイヤー）
+        if (this.isPlayer || ((isPowered || isInverted) && this.stealthOpacity > 0.5)) {
+            ctx.save();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             const fontSize = Math.round(LABEL_PHYSICAL_FONT_SIZE / scaleFactor);
-            ctx.font = `${fontSize}px JetBrains Mono`;
-            ctx.textAlign = 'center';
-            ctx.fillText('YOU', this.pos.x, this.pos.y - (15 / scaleFactor));
+            ctx.font = `${fontSize}px JetBrains Mono`; ctx.textAlign = 'center';
+            let label = this.isPlayer ? "YOU" : "ENEMY";
+            if (isPowered) label = "HEAVY";
+            if (isInverted) label = "REPULS";
+            if (this.repulsiveTrailTimer > 0) label = "TRAIL";
+            ctx.fillText(label, this.pos.x, this.pos.y - (20 / scaleFactor));
+            ctx.restore();
         }
     }
 }
 
 export class GameEngine {
-    canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
-    width: number = 0;
-    height: number = 0;
-    logicalWidth: number = 0;
-    logicalHeight: number = 0;
-    scaleFactor: number = 1;
-    dpr: number = 1;
-    entities: Entity[] = [];
-    particles: Particle[] = [];
-    gameState: GameState = GameState.MENU;
+    canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; audio: AudioManager;
+    width: number = 0; height: number = 0; logicalWidth: number = 0; logicalHeight: number = 0; scaleFactor: number = 1; dpr: number = 1;
+    entities: Entity[] = []; particles: Particle[] = []; items: Item[] = []; gravityWaves: GravityWave[] = [];
+    gameState: GameState = GameState.MENU; gameMode: GameMode = GameMode.SURVIVAL;
     input: InputState = { up: false, down: false, left: false, right: false };
-    lastTime: number = 0;
-    animationId: number = 0;
-    startTime: number = 0;
-    initialEnemyCount: number = ENEMY_NUMBER;
-    maxSpeedRecorded: number = 0;
-    maxGravityRecorded: number = 0;
-    onStateChange: (state: GameState) => void;
-    onStatsUpdate?: (stats: GameStats) => void;
-    frameCount: number = 0;
-
-    // Shake & Flash logic
-    shakeIntensity: number = 0;
-    shakeDecay: number = 0.9;
-    flashOpacity: number = 0;
-    flashColor: string = '#FFFFFF';
+    lastTime: number = 0; animationId: number = 0; startTime: number = 0;
+    initialEnemyCount: number = ENEMY_NUMBER_SURVIVAL; maxSpeedRecorded: number = 0; maxGravityRecorded: number = 0; killCount: number = 0;
+    onStateChange: (state: GameState) => void; onStatsUpdate?: (stats: GameStats) => void;
+    frameCount: number = 0; isLoopRunning: boolean = false; spawnWarnings: SpawnWarning[] = [];
+    shakeIntensity: number = 0; shakeDecay: number = 0.9; flashOpacity: number = 0; flashColor: string = '#FFFFFF';
+    private itemSpawnTimer: number = ITEM_SPAWN_START_DELAY;
+    private resizeHandler = () => this.resize();
 
     constructor(canvas: HTMLCanvasElement, onStateChange: (state: GameState) => void, onStatsUpdate?: (stats: GameStats) => void) {
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
-        this.onStateChange = onStateChange;
-        this.onStatsUpdate = onStatsUpdate;
-        
-        // Ensure parent is ready
-        setTimeout(() => {
-            this.resize();
-            window.addEventListener('resize', () => this.resize());
-        }, 100);
+        this.ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
+        this.onStateChange = onStateChange; this.onStatsUpdate = onStatsUpdate;
+        this.audio = AudioManager.getInstance();
+        setTimeout(() => { this.resize(); window.addEventListener('resize', this.resizeHandler); }, 100);
     }
 
     resize() {
         const parent = this.canvas.parentElement;
         if (parent) {
-            // Check if parent has size yet
             const w = parent.clientWidth || window.innerWidth;
             const h = parent.clientHeight || window.innerHeight;
-            
             this.dpr = window.devicePixelRatio || 1;
-            this.width = w;
-            this.height = h;
-            this.canvas.width = this.width * this.dpr;
-            this.canvas.height = this.height * this.dpr;
-            this.canvas.style.width = `${this.width}px`;
-            this.canvas.style.height = `${this.height}px`;
-            
-            this.ctx.resetTransform();
-            this.ctx.scale(this.dpr, this.dpr);
-            
+            this.width = w; this.height = h;
+            this.canvas.width = this.width * this.dpr; this.canvas.height = this.height * this.dpr;
+            this.canvas.style.width = `${this.width}px`; this.canvas.style.height = `${this.height}px`;
+            this.ctx.resetTransform(); this.ctx.scale(this.dpr, this.dpr);
             const minDimension = Math.min(this.width, this.height);
             this.scaleFactor = Math.max(0.1, minDimension / BASE_LOGICAL_SIZE);
-            this.logicalWidth = this.width / this.scaleFactor;
-            this.logicalHeight = this.height / this.scaleFactor;
+            this.logicalWidth = this.width / this.scaleFactor; this.logicalHeight = this.height / this.scaleFactor;
         }
     }
 
-    start() {
-        this.resize(); // One more resize to be sure
-        this.entities = [];
-        this.particles = [];
-        this.shakeIntensity = 0;
-        this.flashOpacity = 0;
-        this.startTime = Date.now();
-        this.maxSpeedRecorded = 0;
-        this.maxGravityRecorded = 0;
-        
-        const playerX = this.logicalWidth / 2;
-        const playerY = this.logicalHeight / 2;
+    async start(mode: GameMode = GameMode.SURVIVAL) {
+        await this.audio.resume(); this.audio.playStart(); this.resize(); this.gameMode = mode;
+        this.entities = []; this.particles = []; this.spawnWarnings = []; this.items = []; this.gravityWaves = [];
+        this.shakeIntensity = 0; this.flashOpacity = 0; this.startTime = Date.now();
+        this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.frameCount = 0;
+        this.itemSpawnTimer = ITEM_SPAWN_START_DELAY;
+        const playerX = this.logicalWidth / 2; const playerY = this.logicalHeight / 2;
         this.entities.push(new Entity(playerX, playerY, true));
-        
+        this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
         const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
         for (let i = 0; i < this.initialEnemyCount; i++) {
             let x = 0, y = 0, attempts = 0, validPosition = false;
@@ -233,38 +524,26 @@ export class GameEngine {
             }
             this.entities.push(new Entity(x, y, false));
         }
-        
-        this.setGameState(GameState.PLAYING);
-        this.lastTime = performance.now();
-        this.loop(this.lastTime);
+        this.setGameState(GameState.PLAYING); this.lastTime = performance.now();
+        if (!this.isLoopRunning) this.loop(this.lastTime);
     }
 
     setGameState(state: GameState) {
-        const prevState = this.gameState;
-        this.gameState = state;
-        this.onStateChange(state);
-
+        const prevState = this.gameState; this.gameState = state; this.onStateChange(state);
         if (state === GameState.GAME_OVER && prevState === GameState.PLAYING) {
-            this.shakeIntensity = 40; 
-            this.shakeDecay = 0.92;
-            this.flashOpacity = 0.8;
-            this.flashColor = '#FF0000';
+            this.audio.playGameOver(); this.audio.setThrust(0);
+            this.shakeIntensity = 40; this.shakeDecay = 0.92; this.flashOpacity = 0.8; this.flashColor = '#FF0000';
         } else if (state === GameState.VICTORY && prevState === GameState.PLAYING) {
-            this.shakeIntensity = 20; 
-            this.shakeDecay = 0.96;
-            this.flashOpacity = 0.5;
-            this.flashColor = '#00FFFF';
+            this.audio.playVictory(); this.audio.setThrust(0);
+            this.shakeIntensity = 20; this.shakeDecay = 0.96; this.flashOpacity = 0.5; this.flashColor = '#00FFFF';
             this.triggerVictoryBurst();
         }
     }
 
     triggerVictoryBurst() {
-        const player = this.entities.find(e => e.isPlayer);
-        if (!player) return;
-        const count = 500;
-        for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 50 + Math.random() * 600;
+        const player = this.entities.find(e => e.isPlayer); if (!player) return;
+        for (let i = 0; i < 500; i++) {
+            const angle = Math.random() * Math.PI * 2; const speed = 50 + Math.random() * 600;
             const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
             const color = i % 3 === 0 ? COLOR_PLAYER : (i % 3 === 1 ? '#FFFFFF' : '#00AACC');
             this.particles.push(new Particle(player.pos.x, player.pos.y, vel, color, 4.0));
@@ -272,33 +551,26 @@ export class GameEngine {
     }
 
     triggerEliminationEffect(entity: Entity) {
-        const count = entity.isPlayer ? 500 : 600;
-        const intensity = entity.isPlayer ? 40 : 50;
-        
+        this.audio.playExplosion();
+        const count = entity.isPlayer ? 500 : (entity.isSatellite ? 50 : 600);
+        const intensity = entity.isPlayer ? 40 : (entity.isSatellite ? 10 : 50);
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
-        this.flashOpacity = entity.isPlayer ? 0.9 : 0.6;
+        this.flashOpacity = entity.isPlayer ? 0.9 : (entity.isSatellite ? 0.1 : 0.6);
         this.flashColor = entity.color;
-
         for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 100 + Math.random() * 500;
+            const angle = Math.random() * Math.PI * 2; const speed = 100 + Math.random() * 500;
             const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
             this.particles.push(new Particle(entity.pos.x, entity.pos.y, vel, entity.color, 2.0));
         }
     }
 
-    handleInput(input: InputState) {
-        this.input = input;
-    }
+    handleInput(input: InputState) { this.input = input; }
 
     spawnExhaust(entity: Entity, direction: Vector2, thrustMagnitude: number = 1.0) {
-        const normDir = direction.normalize();
-        const offset = normDir.scale(-entity.radius);
-        const spread = 80 * Math.min(thrustMagnitude, 1);
-        const speed = (150 + Math.random() * 100) * Math.min(thrustMagnitude, 1);
-        const particleVel = normDir.scale(-speed).add(
-            new Vector2((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread)
-        );
+        if (this.particles.length > 3000 || entity.stealthOpacity < 0.2) return;
+        const normDir = direction.normalize(); const offset = normDir.scale(-entity.radius);
+        const spread = 80 * Math.min(thrustMagnitude, 1); const speed = (150 + Math.random() * 100) * Math.min(thrustMagnitude, 1);
+        const particleVel = normDir.scale(-speed).add(new Vector2((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread));
         const color = Math.random() > 0.8 ? '#FFFFFF' : entity.color;
         this.particles.push(new Particle(entity.pos.x + offset.x, entity.pos.y + offset.y, particleVel, color));
     }
@@ -307,8 +579,8 @@ export class GameEngine {
         if (!cpu.isCpu) return;
         let closestEntity = null, minDistanceSq = Infinity;
         for (const entity of this.entities) {
-            if (entity === cpu) continue;
-            const distSq = cpu.pos.subtract(entity.pos).lengthSquared();
+            if (entity === cpu || entity.owner === cpu || !entity.isTargetable()) continue; 
+            const dx = cpu.pos.x - entity.pos.x; const dy = cpu.pos.y - entity.pos.y; const distSq = dx * dx + dy * dy;
             if (distSq < minDistanceSq) { minDistanceSq = distSq; closestEntity = entity; }
         }
         const thrustDirection = new Vector2();
@@ -316,231 +588,363 @@ export class GameEngine {
             const target = closestEntity;
             const walls = { 'left': target.pos.x, 'right': this.logicalWidth - target.pos.x, 'top': target.pos.y, 'bottom': this.logicalHeight - target.pos.y };
             const nearestWall = Object.keys(walls).reduce((a, b) => (walls as any)[a] < (walls as any)[b] ? a : b);
-            const PUSH_OFFSET = 50;
-            let targetPosition = target.pos.clone();
-            if (nearestWall === 'left') targetPosition.x += PUSH_OFFSET;
-            else if (nearestWall === 'right') targetPosition.x -= PUSH_OFFSET;
-            else if (nearestWall === 'top') targetPosition.y += PUSH_OFFSET;
-            else if (nearestWall === 'bottom') targetPosition.y -= PUSH_OFFSET;
-            const directionToTarget = targetPosition.subtract(cpu.pos).normalize();
-            thrustDirection.x = directionToTarget.x;
-            thrustDirection.y = directionToTarget.y;
+            const PUSH_OFFSET = 50; let tx = target.pos.x; let ty = target.pos.y;
+            if (nearestWall === 'left') tx += PUSH_OFFSET; else if (nearestWall === 'right') tx -= PUSH_OFFSET;
+            else if (nearestWall === 'top') ty += PUSH_OFFSET; else if (nearestWall === 'bottom') ty -= PUSH_OFFSET;
+            const dx = tx - cpu.pos.x; const dy = ty - cpu.pos.y; const len = Math.sqrt(dx * dx + dy * dy);
+            if (len > 0) { thrustDirection.x = dx / len; thrustDirection.y = dy / len; }
         }
-        const avoidanceForce = new Vector2();
-        const avoidanceMargin = 50;
-        if (cpu.pos.x < avoidanceMargin) avoidanceForce.x = 1;
-        else if (cpu.pos.x > this.logicalWidth - avoidanceMargin) avoidanceForce.x = -1;
-        if (cpu.pos.y < avoidanceMargin) avoidanceForce.y = 1;
-        else if (cpu.pos.y > this.logicalHeight - avoidanceMargin) avoidanceForce.y = -1;
+        const avoidanceForce = new Vector2(); const avoidanceMargin = 50;
+        if (cpu.pos.x < avoidanceMargin) avoidanceForce.x = 1; else if (cpu.pos.x > this.logicalWidth - avoidanceMargin) avoidanceForce.x = -1;
+        if (cpu.pos.y < avoidanceMargin) avoidanceForce.y = 1; else if (cpu.pos.y > this.logicalHeight - avoidanceMargin) avoidanceForce.y = -1;
         if (avoidanceForce.length() > 0) cpu.applyForce(avoidanceForce.normalize().scale(2000));
         if (cpu.pos.x < WALL_MARGIN || cpu.pos.x > this.logicalWidth - WALL_MARGIN) {
             cpu.breakingValue = (WALL_MARGIN - Math.min(cpu.pos.x, this.logicalWidth - cpu.pos.x)) / BREAK_BOOST;
         } else if (cpu.pos.y < WALL_MARGIN || cpu.pos.y > this.logicalHeight - WALL_MARGIN) {
             cpu.breakingValue = (WALL_MARGIN - Math.min(cpu.pos.y, this.logicalHeight - cpu.pos.y)) / BREAK_BOOST;
-        } else {
-            cpu.breakingValue = 0;
-        }
+        } else cpu.breakingValue = 0;
         if (thrustDirection.length() > 0) {
-            let forceVector = thrustDirection.normalize().scale(CPU_THRUST_FORCE);
-            if (cpu.vel.x * thrustDirection.x < 0) forceVector.x *= (BREAKING_CONSTANT + cpu.breakingValue);
-            if (cpu.vel.y * thrustDirection.y < 0) forceVector.y *= (BREAKING_CONSTANT + cpu.breakingValue);
-            cpu.applyForce(forceVector);
-            if (Math.random() > 0.4) this.spawnExhaust(cpu, thrustDirection, 0.8);
+            let fx = thrustDirection.x * CPU_THRUST_FORCE * cpu.thrustMultiplier; 
+            let fy = thrustDirection.y * CPU_THRUST_FORCE * cpu.thrustMultiplier;
+            if (cpu.vel.x * thrustDirection.x < 0) fx *= (BREAKING_CONSTANT + cpu.breakingValue);
+            if (cpu.vel.y * thrustDirection.y < 0) fy *= (BREAKING_CONSTANT + cpu.breakingValue);
+            cpu.applyForce(new Vector2(fx, fy));
+            if (Math.random() > 0.4) this.spawnExhaust(cpu, thrustDirection, 0.8 * cpu.thrustMultiplier);
+        }
+    }
+
+    updateSatellite(sat: Entity) {
+        if (!sat.isSatellite || !sat.owner) return;
+        let closestEnemy = null, minDistanceSq = Infinity;
+        for (const entity of this.entities) {
+            if (entity === sat.owner || entity.owner === sat.owner || entity.isSatellite || !entity.isTargetable()) continue;
+            const dx = sat.pos.x - entity.pos.x; const dy = sat.pos.y - entity.pos.y; const distSq = dx * dx + dy * dy;
+            if (distSq < minDistanceSq) { minDistanceSq = distSq; closestEnemy = entity; }
+        }
+        if (closestEnemy) {
+            const dx = closestEnemy.pos.x - sat.pos.x; const dy = closestEnemy.pos.y - sat.pos.y; const len = Math.sqrt(dx * dx + dy * dy);
+            if (len > 0) {
+                const tx = dx / len; const ty = dy / len;
+                sat.applyForce(new Vector2(tx * SATELLITE_THRUST, ty * SATELLITE_THRUST));
+                if (Math.random() > 0.6) this.spawnExhaust(sat, new Vector2(tx, ty), 0.5);
+            }
         }
     }
 
     update(dt: number) {
-        if (this.shakeIntensity > 0.1) this.shakeIntensity *= this.shakeDecay;
-        else this.shakeIntensity = 0;
-        
-        if (this.flashOpacity > 0.01) this.flashOpacity *= 0.9;
-        else this.flashOpacity = 0;
-
-        if (this.gameState !== GameState.PLAYING) {
-             this.particles.forEach(p => p.update(dt));
-             this.particles = this.particles.filter(p => p.life > 0);
-             return;
+        if (this.shakeIntensity > 0.1) this.shakeIntensity *= this.shakeDecay; else this.shakeIntensity = 0;
+        if (this.flashOpacity > 0.01) this.flashOpacity *= 0.9; else this.flashOpacity = 0;
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            this.particles[i].update(dt);
+            if (this.particles[i].life <= 0) { this.particles[i] = this.particles[this.particles.length - 1]; this.particles.pop(); }
         }
+        for (let i = this.spawnWarnings.length - 1; i >= 0; i--) {
+            this.spawnWarnings[i].timer -= dt;
+            if (this.spawnWarnings[i].timer <= 0) { const w = this.spawnWarnings[i]; this.entities.push(new Entity(w.x, w.y, false)); this.spawnWarnings.splice(i, 1); }
+        }
+        for (let i = this.items.length - 1; i >= 0; i--) this.items[i].update(dt);
+        for (let i = this.gravityWaves.length - 1; i >= 0; i--) {
+            this.gravityWaves[i].update(dt, this.entities);
+            if (this.gravityWaves[i].life <= 0) this.gravityWaves.splice(i, 1);
+        }
+        if (this.gameState !== GameState.PLAYING) return;
+        this.itemSpawnTimer -= dt;
+        if (this.itemSpawnTimer <= 0) {
+            const x = Math.random() * (this.logicalWidth - 100) + 50; const y = Math.random() * (this.logicalHeight - 100) + 50;
+            const r = Math.random();
+            let type = ItemType.MASS_BOOST;
+            let sum_ratio = item_ratio.reduce((acc, val) => acc+val, 0)
+            if (r < item_ratio[0]/sum_ratio) type = ItemType.MASS_BOOST;
+            else if (r < (item_ratio[0]+item_ratio[1])/sum_ratio) type = ItemType.SATELLITE;
+            else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2])/sum_ratio) type = ItemType.INVISIBILITY;
+            else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3])/sum_ratio) type = ItemType.GRAVITY_WAVE;
+            else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3]+item_ratio[4])/sum_ratio) type = ItemType.INVERSION;
+            else type = ItemType.REPULSIVE_TRAIL;
 
+            this.items.push(new Item(x, y, type));
+            this.itemSpawnTimer = ITEM_SPAWN_INTERVAL_MIN + Math.random() * (ITEM_SPAWN_INTERVAL_MAX - ITEM_SPAWN_INTERVAL_MIN);
+        }
+        for (let i = this.items.length - 1; i >= 0; i--) {
+            const item = this.items[i]; let itemConsumed = false;
+            for (const entity of this.entities) {
+                if (entity.isSatellite) continue;
+                const dx = entity.pos.x - item.pos.x; const dy = entity.pos.y - item.pos.y; const distSq = dx * dx + dy * dy;
+                if (distSq < Math.pow(entity.radius + ITEM_AREA_RADIUS, 2)) {
+                    if (item.type === ItemType.MASS_BOOST) {
+                        entity.powerupTimer = POWERUP_DURATION; entity.massMultiplier = MASS_BOOST_MULTIPLIER; entity.thrustMultiplier = MASS_BOOST_MULTIPLIER;
+                    } else if (item.type === ItemType.SATELLITE) {
+                        for (let s = 0; s < SATELLITE_NUM; s++) {
+                            const sat = new Entity(entity.pos.x, entity.pos.y, false, true, entity);
+                            const launchAngle = Math.PI * 2 *Math.random();
+                            sat.vel = new Vector2(Math.cos(launchAngle), Math.sin(launchAngle)).scale(100).add(entity.vel);
+                            this.entities.push(sat);
+                        }
+                    } else if (item.type === ItemType.INVISIBILITY) { entity.stealthTimer = STEALTH_TOTAL_DURATION; }
+                    else if (item.type === ItemType.GRAVITY_WAVE) { entity.waveChargeCount = 2; entity.waveChargeTimer = 0.01; }
+                    else if (item.type === ItemType.INVERSION) { entity.inversionTimer = INVERSION_DURATION; }
+                    else if (item.type === ItemType.REPULSIVE_TRAIL) { 
+                        entity.repulsiveTrailTimer = REPULSIVE_TRAIL_DURATION; 
+                        entity.trail = []; // Reset trail immediately to remove previous trail visuals
+                    }
+
+                    this.audio.playVictory(); this.flashOpacity = entity.isPlayer ? 0.4 : 0.2;
+                    let fColor = COLOR_ITEM_MASS;
+                    if (item.type === ItemType.SATELLITE) fColor = COLOR_ITEM_SATELLITE;
+                    else if (item.type === ItemType.INVISIBILITY) fColor = COLOR_ITEM_STEALTH;
+                    else if (item.type === ItemType.GRAVITY_WAVE) fColor = COLOR_ITEM_WAVE;
+                    else if (item.type === ItemType.INVERSION) fColor = COLOR_ITEM_INVERSION;
+                    else if (item.type === ItemType.REPULSIVE_TRAIL) fColor = COLOR_ITEM_REPULSIVE;
+                    this.flashColor = fColor; itemConsumed = true;
+                    for (let p = 0; p < 30; p++) {
+                        const angle = Math.random() * Math.PI * 2; const speed = 100 + Math.random() * 200;
+                        const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
+                        this.particles.push(new Particle(item.pos.x, item.pos.y, vel, this.flashColor, 1.5));
+                    }
+                    break;
+                }
+            }
+            if (itemConsumed) this.items.splice(i, 1);
+        }
         const player = this.entities.find(e => e.isPlayer);
         let playerTotalGravityForce = 0, minDangerDist = Infinity;
-        
         if (player) {
-            let thrustDirection = new Vector2();
-            let magnitude = 0;
+            let tx = 0, ty = 0, magnitude = 0;
             if (this.input.vector && (Math.abs(this.input.vector.x) > 0.01 || Math.abs(this.input.vector.y) > 0.01)) {
-                thrustDirection.x = this.input.vector.x; thrustDirection.y = this.input.vector.y;
-                magnitude = thrustDirection.length();
+                tx = this.input.vector.x; ty = this.input.vector.y; magnitude = Math.sqrt(tx * tx + ty * ty);
             } else {
-                if (this.input.left) thrustDirection.x -= 1;
-                if (this.input.right) thrustDirection.x += 1;
-                if (this.input.up) thrustDirection.y -= 1;
-                if (this.input.down) thrustDirection.y += 1;
-                magnitude = thrustDirection.length() > 0 ? 1.0 : 0;
+                if (this.input.left) tx -= 1; if (this.input.right) tx += 1; if (this.input.up) ty -= 1; if (this.input.down) ty += 1;
+                magnitude = (tx !== 0 || ty !== 0) ? 1.0 : 0;
             }
-
+            this.audio.setThrust(magnitude);
             if (player.pos.x < WALL_MARGIN || player.pos.x > this.logicalWidth - WALL_MARGIN) {
                 const dist = Math.min(player.pos.x, this.logicalWidth - player.pos.x);
-                player.breakingValue = (WALL_MARGIN - dist) / BREAK_BOOST;
-                minDangerDist = Math.min(minDangerDist, dist);
+                player.breakingValue = (WALL_MARGIN - dist) / BREAK_BOOST; minDangerDist = Math.min(minDangerDist, dist);
             } else if (player.pos.y < WALL_MARGIN || player.pos.y > this.logicalHeight - WALL_MARGIN) {
                 const dist = Math.min(player.pos.y, this.logicalHeight - player.pos.y);
-                player.breakingValue = (WALL_MARGIN - dist) / BREAK_BOOST;
-                minDangerDist = Math.min(minDangerDist, dist);
-            } else {
-                player.breakingValue = 0;
-                minDangerDist = Math.min(player.pos.x, this.logicalWidth - player.pos.x, player.pos.y, this.logicalHeight - player.pos.y);
-            }
-
+                player.breakingValue = (WALL_MARGIN - dist) / BREAK_BOOST; minDangerDist = Math.min(minDangerDist, dist);
+            } else { player.breakingValue = 0; minDangerDist = Math.min(player.pos.x, this.logicalWidth - player.pos.x, player.pos.y, this.logicalHeight - player.pos.y); }
             if (magnitude > 0) {
-                const normDir = thrustDirection.normalize();
-                let forceVector = normDir.scale(THRUST_FORCE * Math.min(magnitude, 1.0));
-                if (player.vel.x * normDir.x < 0) forceVector.x *= (BREAKING_CONSTANT + player.breakingValue);
-                if (player.vel.y * normDir.y < 0) forceVector.y *= (BREAKING_CONSTANT + player.breakingValue);
-                player.applyForce(forceVector);
-                const particlesToSpawn = Math.floor(Math.min(magnitude, 1) * 3);
-                for(let i = 0; i < particlesToSpawn; i++) this.spawnExhaust(player, normDir, magnitude);
-                if (Math.random() < (magnitude % 1)) this.spawnExhaust(player, normDir, magnitude);
+                const len = Math.sqrt(tx * tx + ty * ty); const nx = tx / len; const ny = ty / len;
+                let fx = nx * THRUST_FORCE * Math.min(magnitude, 1.0) * player.thrustMultiplier; 
+                let fy = ny * THRUST_FORCE * Math.min(magnitude, 1.0) * player.thrustMultiplier;
+                if (player.vel.x * nx < 0) fx *= (BREAKING_CONSTANT + player.breakingValue);
+                if (player.vel.y * ny < 0) fy *= (BREAKING_CONSTANT + player.breakingValue);
+                player.applyForce(new Vector2(fx, fy));
+                for(let i = 0; i < Math.floor(Math.min(magnitude, 1) * 3); i++) this.spawnExhaust(player, new Vector2(nx, ny), magnitude);
             }
         }
-
-        this.entities.forEach(e => { if (e.isCpu) this.updateCpu(e); });
+        this.entities.forEach(e => { 
+            if (e.isCpu) this.updateCpu(e); if (e.isSatellite) this.updateSatellite(e);
+            if (e.waveChargeCount > 0) {
+                e.waveChargeTimer -= dt;
+                if (e.waveChargeTimer <= 0) {
+                    this.gravityWaves.push(new GravityWave(e.pos.x, e.pos.y, e)); this.audio.playExplosion(); 
+                    e.waveChargeCount--; e.waveChargeTimer = WAVE_INTERVAL;
+                }
+            }
+        });
         
-        for (let i = 0; i < this.entities.length; i++) {
-            for (let j = i + 1; j < this.entities.length; j++) {
-                const A = this.entities[i], B = this.entities[j];
-                const distVec = B.pos.subtract(A.pos), distSq = distVec.lengthSquared();
-                if (distSq > 0) {
-                    const forceMag = Math.min(GRAVITY_CONSTANT * (A.mass * B.mass) / (distSq ** DIST_EXP) , GRAVITY_MAX);
-                    const forceVector = distVec.normalize().scale(forceMag);
-                    A.applyForce(forceVector);
-                    B.applyForce(forceVector.scale(-1));
-                    if (A.isPlayer || B.isPlayer) {
-                         playerTotalGravityForce += forceMag;
-                         minDangerDist = Math.min(minDangerDist, Math.sqrt(distSq) - A.radius - B.radius);
+        // Repulsive Trail Collision Detection
+        for (const entity of this.entities) {
+            if (entity.isStealthActive()) continue; // Stealth check for repulsive trail
+
+            for (const other of this.entities) {
+                if (entity === other) continue;
+                if (other.trail.length < 2) continue;
+                
+                // Entity is the "ball", Other is the "wall provider"
+                // Don't collide with own trail or owner's trail? (Requirement says "user is not affected")
+                if (other === entity || (entity.owner && entity.owner === other)) continue;
+                
+                // Iterate trail segments
+                for (let i = 0; i < other.trail.length - 1; i++) {
+                    const p1 = other.trail[i];
+                    const p2 = other.trail[i+1];
+                    if (!p1.isRepulsive) continue;
+
+                    // Line segment collision with circle
+                    // Closest point on segment
+                    const l2 = (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
+                    if (l2 === 0) continue;
+                    
+                    let t = ((entity.pos.x - p1.x) * (p2.x - p1.x) + (entity.pos.y - p1.y) * (p2.y - p1.y)) / l2;
+                    t = Math.max(0, Math.min(1, t));
+                    
+                    const closestX = p1.x + t * (p2.x - p1.x);
+                    const closestY = p1.y + t * (p2.y - p1.y);
+                    
+                    const distSq = (entity.pos.x - closestX)**2 + (entity.pos.y - closestY)**2;
+                    const minDist = entity.radius + (TRAIL_WIDTH * 1.5); // Approximate radius of trail
+                    
+                    if (distSq < minDist * minDist) {
+                        // Collision response
+                        const segDx = p2.x - p1.x;
+                        const segDy = p2.y - p1.y;
+                        const segLen = Math.sqrt(l2);
+
+                        // 平面法線ベースの衝突処理
+                        // 線分に対して常に垂直な法線を使用し、端点での逆反射を防ぐ
+                        let nx = -segDy / segLen;
+                        let ny = segDx / segLen;
+
+                        // エンティティがいる側に向ける
+                        const toEntityX = entity.pos.x - closestX;
+                        const toEntityY = entity.pos.y - closestY;
+                        
+                        // 内積で向き確認
+                        if (nx * toEntityX + ny * toEntityY < 0) {
+                            nx = -nx;
+                            ny = -ny;
+                        }
+                        
+                        const nLen = Math.sqrt(distSq);
+
+                        // Velocity Reflection
+                        const dot = entity.vel.x * nx + entity.vel.y * ny;
+                        if (dot < 0) { // Only reflect if moving towards
+                            const restitution = entity.isInversionActive() ? 0 : REPULSIVE_TRAIL_RESTITUTION;
+                            
+                            // Decompose velocity
+                            const vnX = nx * dot;
+                            const vnY = ny * dot;
+                            const vtX = entity.vel.x - vnX;
+                            const vtY = entity.vel.y - vnY;
+
+                            // Apply restitution/friction
+                            // Normal: Reflects (negative) and scales by restitution
+                            // Tangential: Scales by REPULSIVE_TRAIL_RESTITUTION_TAN
+                            entity.vel.x = ((vnX) * -restitution) + (vtX * REPULSIVE_TRAIL_RESTITUTION_TAN);
+                            entity.vel.y = ((vnY) * -restitution) + (vtY * REPULSIVE_TRAIL_RESTITUTION_TAN);
+                            
+                            // Push out to prevent sticking
+                            // Use normal direction, but distance is calculated from closest point
+                            // If exactly on line (nLen=0), push out by radius
+                            const pushDist = (minDist - nLen) + 1.0;
+                            entity.pos.x += nx * pushDist;
+                            entity.pos.y += ny * pushDist;
+                            
+                            // Effect
+                            if (Math.random() > 0.5) {
+                                for(let k=0; k<5; k++) {
+                                    this.particles.push(new Particle(closestX, closestY, new Vector2(nx*100 + (Math.random()-0.5)*100, ny*100 + (Math.random()-0.5)*100), COLOR_ITEM_REPULSIVE));
+                                }
+                            }
+                            
+                            // Important: Break loop to prevent double collision handling for the same trail
+                            break;
+                        }
                     }
                 }
             }
         }
 
+        for (let i = 0; i < this.entities.length; i++) {
+            for (let j = i + 1; j < this.entities.length; j++) {
+                const A = this.entities[i], B = this.entities[j];
+                if (A.owner === B || B.owner === A) continue;
+                if (A.isSatellite && B.isSatellite) continue;
+                const dx = B.pos.x - A.pos.x; const dy = B.pos.y - A.pos.y; const distSq = dx * dx + dy * dy;
+                if (distSq > 0) {
+                    const forceMag = Math.min(GRAVITY_CONSTANT * (A.getCurrentMass() * B.getCurrentMass()) / (distSq ** DIST_EXP) , GRAVITY_MAX);
+                    const dist = Math.sqrt(distSq); const fx = (dx / dist) * forceMag; const fy = (dy / dist) * forceMag;
+                    let fOnA = new Vector2(fx, fy); let fOnB = new Vector2(-fx, -fy);
+                    const aInv = A.isInversionActive(); const bInv = B.isInversionActive();
+                    if (aInv || bInv) {
+                        fOnA = fOnA.scale(-1); fOnB = fOnB.scale(-1); // Reverse to repulsion
+                        let multA = 1.0; let multB = 1.0;
+                        if (aInv) { multA *= INVERSION_MULTIPLE_2; multB *= INVERSION_MULTIPLE_1; }
+                        if (bInv) { multB *= INVERSION_MULTIPLE_2; multA *= INVERSION_MULTIPLE_1; }
+                        fOnA = fOnA.scale(multA); fOnB = fOnB.scale(multB);
+                    }
+                    if (A.isStealthActive()) fOnA = fOnA.scale(GRAVITY_REDUCTION);
+                    if (B.isStealthActive()) fOnB = fOnB.scale(GRAVITY_REDUCTION);
+                    A.applyForce(fOnA); B.applyForce(fOnB);
+                    if (A.isPlayer || B.isPlayer) { 
+                        playerTotalGravityForce += A.isPlayer ? fOnA.length() : fOnB.length();
+                        minDangerDist = Math.min(minDangerDist, dist - A.radius - B.radius); 
+                    }
+                }
+            }
+        }
         this.entities.forEach(e => e.update(dt));
-        
-        this.entities.forEach(e => {
+        for (let i = this.entities.length - 1; i >= 0; i--) {
+            const e = this.entities[i];
             if (e.pos.x < 0 || e.pos.x > this.logicalWidth || e.pos.y < 0 || e.pos.y > this.logicalHeight) {
                 this.triggerEliminationEffect(e);
                 if (e.isPlayer) this.setGameState(GameState.GAME_OVER);
+                else { if (!e.isSatellite) this.killCount++; if (this.gameMode === GameMode.ENDLESS && !e.isSatellite) this.requestSpawnEnemy(); }
+                this.entities.splice(i, 1);
             }
-        });
-
-        this.entities = this.entities.filter(e => e.pos.x > 0 && e.pos.x < this.logicalWidth && e.pos.y > 0 && e.pos.y < this.logicalHeight);
-        
-        this.particles.forEach(p => p.update(dt));
-        this.particles = this.particles.filter(p => p.life > 0);
-
+        }
         if (player) {
             if (player.vel.length() > this.maxSpeedRecorded) this.maxSpeedRecorded = player.vel.length();
             if (playerTotalGravityForce > this.maxGravityRecorded) this.maxGravityRecorded = playerTotalGravityForce;
         }
-
-        if (player && this.entities.length === 1 && this.gameState === GameState.PLAYING) this.setGameState(GameState.VICTORY);
-
+        const enemiesLeft = this.entities.filter(e => e.isCpu).length;
+        if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING) this.setGameState(GameState.VICTORY);
         this.frameCount++;
         if (this.onStatsUpdate && player && this.frameCount % 5 === 0) {
-             this.onStatsUpdate({
-                 speed: player.vel.length(),
-                 gravityForce: playerTotalGravityForce,
-                 maxSpeed: this.maxSpeedRecorded,
-                 maxGravity: this.maxGravityRecorded,
-                 currentEnemies: this.entities.length - 1,
-                 initialEnemies: this.initialEnemyCount,
-                 timeSurvived: (Date.now() - this.startTime) / 1000,
-                 dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100)
-             });
+             this.onStatsUpdate({ mode: this.gameMode, speed: player.vel.length(), gravityForce: playerTotalGravityForce, maxSpeed: this.maxSpeedRecorded, maxGravity: this.maxGravityRecorded, currentEnemies: enemiesLeft, initialEnemies: this.initialEnemyCount, timeSurvived: (Date.now() - this.startTime) / 1000, dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100), kills: this.killCount });
         }
+    }
+
+    requestSpawnEnemy() {
+        let x = 0, y = 0, attempts = 0, valid = false; const player = this.entities.find(e => e.isPlayer);
+        while (!valid && attempts < 20) {
+            x = Math.random() * (this.logicalWidth - PLAYER_RADIUS * 2) + PLAYER_RADIUS; y = Math.random() * (this.logicalWidth - PLAYER_RADIUS * 2) + PLAYER_RADIUS;
+            if (player) { if (Math.pow(x - player.pos.x, 2) + Math.pow(y - player.pos.y, 2) > Math.pow(SAFE_DISTANCE * 2, 2)) valid = true; } else valid = true;
+            attempts++;
+        }
+        this.spawnWarnings.push({ x, y, timer: 2.0 });
     }
 
     draw() {
         if (!this.width || !this.height) return;
-
-        this.ctx.clearRect(0, 0, this.width, this.height);
-        this.ctx.fillStyle = '#050505';
-        this.ctx.fillRect(0, 0, this.width, this.height);
-        
+        this.ctx.clearRect(0, 0, this.width, this.height); this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
         this.ctx.save();
-
-        if (this.shakeIntensity > 0) {
-            const sx = (Math.random() - 0.5) * this.shakeIntensity;
-            const sy = (Math.random() - 0.5) * this.shakeIntensity;
-            this.ctx.translate(sx, sy);
-        }
-
+        if (this.shakeIntensity > 0) this.ctx.translate((Math.random() - 0.5) * this.shakeIntensity, (Math.random() - 0.5) * this.shakeIntensity);
         this.ctx.scale(this.scaleFactor, this.scaleFactor);
-        this.drawGrid();
-        this.drawBoundaries(); 
-        this.drawGravityLines(); 
+        this.drawGrid(); this.drawBoundaries(); this.drawGravityLines(); this.drawSpawnWarnings();
+        this.items.forEach(item => item.draw(this.ctx, this.scaleFactor));
+        this.gravityWaves.forEach(wave => wave.draw(this.ctx, this.scaleFactor));
         this.ctx.globalCompositeOperation = 'lighter';
-        this.particles.forEach(p => p.draw(this.ctx, this.scaleFactor));
-        this.entities.forEach(e => e.draw(this.ctx, this.scaleFactor));
+        this.particles.forEach(p => p.draw(this.ctx, this.scaleFactor)); this.entities.forEach(e => e.draw(this.ctx, this.scaleFactor));
         this.ctx.restore();
+        if (this.flashOpacity > 0) { this.ctx.save(); this.ctx.globalAlpha = this.flashOpacity; this.ctx.fillStyle = this.flashColor; this.ctx.fillRect(0, 0, this.width, this.height); this.ctx.restore(); }
+    }
 
-        if (this.flashOpacity > 0) {
-            this.ctx.save();
-            this.ctx.globalAlpha = this.flashOpacity;
-            this.ctx.fillStyle = this.flashColor;
-            this.ctx.fillRect(0, 0, this.width, this.height);
-            this.ctx.restore();
-        }
-
-        this.ctx.globalCompositeOperation = 'source-over';
+    drawSpawnWarnings() {
+        this.spawnWarnings.forEach(w => {
+            const alpha = (Math.sin(Date.now() / 50) + 1) / 2 * 0.6;
+            this.ctx.strokeStyle = `rgba(255, 0, 0, ${alpha})`; this.ctx.lineWidth = 4 / this.scaleFactor; this.ctx.beginPath();
+            this.ctx.arc(w.x, w.y, PLAYER_RADIUS * 3 * (w.timer / 2.0 + 0.5), 0, Math.PI * 2); this.ctx.stroke();
+            this.ctx.fillStyle = `rgba(255, 0, 0, ${alpha * 0.3})`; this.ctx.fill();
+        });
     }
 
     drawBoundaries() {
-        const borderWidth = 20;
-        const isGameOver = this.gameState === GameState.GAME_OVER;
-        const colorBase = isGameOver ? '255, 0, 0' : '255, 0, 50';
-
+        const borderWidth = 20; const isGameOver = this.gameState === GameState.GAME_OVER;
+        const player = this.entities.find(e => e.isPlayer);
+        const isPowered = player?.massMultiplier! > 1.0; const isInverted = player?.isInversionActive();
+        const colorBase = isGameOver ? '255, 0, 0' : (isInverted ? '50, 205, 50' : (isPowered ? '0, 240, 255' : '255, 0, 50'));
         const gradient = this.ctx.createRadialGradient(this.logicalWidth/2, this.logicalHeight/2, Math.min(this.logicalWidth, this.logicalHeight) * 0.4, this.logicalWidth/2, this.logicalHeight/2, Math.max(this.logicalWidth, this.logicalHeight) * 0.8);
-        gradient.addColorStop(0, `rgba(${colorBase}, 0)`);
-        gradient.addColorStop(1, `rgba(${colorBase}, 0.1)`);
-        this.ctx.fillStyle = gradient;
-        this.ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-        
-        this.ctx.shadowBlur = isGameOver ? 30 : 15;
-        this.ctx.shadowColor = `rgba(${colorBase}, 0.6)`;
-        this.ctx.strokeStyle = `rgba(${colorBase}, 0.5)`;
-        this.ctx.lineWidth = borderWidth;
-        this.ctx.strokeRect(0, 0, this.logicalWidth, this.logicalHeight);
-        
-        const cornerSize = 120;
-        this.ctx.strokeStyle = isGameOver ? '#FF0000' : '#FF3333';
-        this.ctx.lineWidth = 25;
-        this.ctx.shadowColor = '#FF0000';
-        this.ctx.shadowBlur = isGameOver ? 40 : 20;
-        const drawCorner = (x: number, y: number, dx: number, dy: number) => {
-             this.ctx.beginPath();
-             this.ctx.moveTo(x + dx * cornerSize, y);
-             this.ctx.lineTo(x, y);
-             this.ctx.lineTo(x, y + dy * cornerSize);
-             this.ctx.stroke();
-        };
-        drawCorner(0, 0, 1, 1);
-        drawCorner(this.logicalWidth, 0, -1, 1);
-        drawCorner(this.logicalWidth, this.logicalHeight, -1, -1);
-        drawCorner(0, this.logicalHeight, 1, -1);
-        this.ctx.shadowBlur = 0;
+        gradient.addColorStop(0, `rgba(${colorBase}, 0)`); gradient.addColorStop(1, `rgba(${colorBase}, 0.1)`);
+        this.ctx.fillStyle = gradient; this.ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+        this.ctx.strokeStyle = `rgba(${colorBase}, 0.5)`; this.ctx.lineWidth = borderWidth; this.ctx.strokeRect(0, 0, this.logicalWidth, this.logicalHeight);
+        const cornerSize = 120; this.ctx.strokeStyle = isGameOver ? '#FF0000' : (isInverted ? COLOR_ITEM_INVERSION : (isPowered ? '#00F0FF' : '#FF3333')); this.ctx.lineWidth = 25;
+        const drawCorner = (x: number, y: number, dx: number, dy: number) => { this.ctx.beginPath(); this.ctx.moveTo(x + dx * cornerSize, y); this.ctx.lineTo(x, y); this.ctx.lineTo(x, y + dy * cornerSize); this.ctx.stroke(); };
+        drawCorner(0, 0, 1, 1); drawCorner(this.logicalWidth, 0, -1, 1); drawCorner(this.logicalWidth, this.logicalHeight, -1, -1); drawCorner(0, this.logicalHeight, 1, -1);
     }
 
     drawGrid() {
-        const step = 70;
-        const isGameOver = this.gameState === GameState.GAME_OVER;
-        const offsetX = (Date.now() / (isGameOver ? 20 : 50)) % step;
-        const offsetY = (Date.now() / (isGameOver ? 20 : 50)) % step;
-        
-        this.ctx.strokeStyle = isGameOver ? 'rgba(255, 0, 0, 0.4)' : 'rgba(255, 100, 255, 0.3)';
-        this.ctx.lineWidth = 1 / this.scaleFactor;
-        this.ctx.beginPath();
-        for (let x = offsetX; x <= this.logicalWidth; x += step) { this.ctx.moveTo(x, 0); this.ctx.lineTo(x, this.logicalHeight); }
-        for (let y = offsetY; y <= this.logicalHeight; y += step) { this.ctx.moveTo(0, y); this.ctx.lineTo(this.logicalWidth, y); }
+        const step = 70; const isGameOver = this.gameState === GameState.GAME_OVER;
+        const player = this.entities.find(e => e.isPlayer);
+        const isPowered = player?.massMultiplier! > 1.0; const isInverted = player?.isInversionActive();
+        const div = isGameOver ? 20 : (isPowered ? 30 : 50);
+        this.ctx.strokeStyle = isGameOver ? 'rgba(255, 0, 0, 0.4)' : (isInverted ? 'rgba(50, 205, 50, 0.5)' : (isPowered ? 'rgba(0, 240, 255, 0.5)' : 'rgba(255, 100, 255, 0.3)')); 
+        this.ctx.lineWidth = 1 / this.scaleFactor; this.ctx.beginPath();
+        for (let x = (Date.now() / div) % step; x <= this.logicalWidth; x += step) { this.ctx.moveTo(x, 0); this.ctx.lineTo(x, this.logicalHeight); }
+        for (let y = (Date.now() / div) % step; y <= this.logicalHeight; y += step) { this.ctx.moveTo(0, y); this.ctx.lineTo(this.logicalWidth, y); }
         this.ctx.stroke();
     }
 
@@ -549,13 +953,22 @@ export class GameEngine {
         for (let i = 0; i < this.entities.length; i++) {
             for (let j = i + 1; j < this.entities.length; j++) {
                 const A = this.entities[i], B = this.entities[j];
-                const dist = Vector2.distance(A.pos, B.pos);
-                if (dist < 800) {
-                    const opacity = Math.pow(1 - (dist / 800), 2) * 0.7;
+                if (A.owner === B || B.owner === A) continue;
+                if (A.isSatellite && B.isSatellite) continue;
+                const aVisualOpacity = A.isPlayer ? (A.stealthTimer > 0 ? 0 : 1) : A.stealthOpacity;
+                const bVisualOpacity = B.isPlayer ? (B.stealthTimer > 0 ? 0 : 1) : B.stealthOpacity;
+                const stealthLineAlpha = Math.min(aVisualOpacity, bVisualOpacity);
+                if (stealthLineAlpha <= 0.05) continue;
+                const dx = B.pos.x - A.pos.x; const dy = B.pos.y - A.pos.y; const distSq = dx * dx + dy * dy;
+                if (distSq < 640000) {
+                    const dist = Math.sqrt(distSq); const baseOpacity = Math.pow(1 - (dist / 800), 2) * 0.7;
+                    const anyHeavy = A.massMultiplier > 1.0 || B.massMultiplier > 1.0;
+                    const anyInverted = A.isInversionActive() || B.isInversionActive();
+                    const opacity = (anyHeavy ? baseOpacity * 1.5 : baseOpacity) * stealthLineAlpha;
                     const grad = this.ctx.createLinearGradient(A.pos.x, A.pos.y, B.pos.x, B.pos.y);
-                    grad.addColorStop(0, `rgba(0, 240, 255, ${opacity})`);
-                    grad.addColorStop(1, `rgba(255, 0, 85, ${opacity})`);
-                    this.ctx.strokeStyle = grad;
+                    if (anyInverted) { grad.addColorStop(0, `rgba(50, 205, 50, ${opacity})`); grad.addColorStop(1, `rgba(50, 205, 50, ${opacity})`); }
+                    else { grad.addColorStop(0, A.isSatellite ? `rgba(255,255,255, ${opacity})` : `rgba(0, 240, 255, ${opacity})`); grad.addColorStop(1, B.isSatellite ? `rgba(255,255,255, ${opacity})` : `rgba(255, 0, 85, ${opacity})`); }
+                    this.ctx.strokeStyle = grad; this.ctx.lineWidth = anyHeavy ? (G_LINE_WIDTH * 3) / this.scaleFactor : (G_LINE_WIDTH) / this.scaleFactor;
                     this.ctx.beginPath(); this.ctx.moveTo(A.pos.x, A.pos.y); this.ctx.lineTo(B.pos.x, B.pos.y); this.ctx.stroke();
                 }
             }
@@ -563,12 +976,11 @@ export class GameEngine {
     }
 
     loop(timestamp: number) {
+        if (!this.isLoopRunning) this.isLoopRunning = true;
         const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1); 
-        this.lastTime = timestamp;
-        this.update(dt);
-        this.draw();
+        this.lastTime = timestamp; this.update(dt); this.draw();
         this.animationId = requestAnimationFrame((t) => this.loop(t));
     }
 
-    stop() { cancelAnimationFrame(this.animationId); }
+    stop() { cancelAnimationFrame(this.animationId); this.isLoopRunning = false; window.removeEventListener('resize', this.resizeHandler); }
 }

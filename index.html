@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Graviator: Neon Horizon</title>
+    <title>Graviator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Fugaz+One&display=swap" rel="stylesheet">
@@ -25,18 +25,36 @@
         
         #error-display {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(255, 0, 0, 0.9);
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 600px;
+            background: rgba(220, 38, 38, 0.95);
+            backdrop-filter: blur(10px);
             color: white;
-            padding: 20px;
+            padding: 15px;
             font-family: monospace;
             z-index: 99999;
             display: none;
             box-sizing: border-box;
-            max-height: 50vh;
-            overflow-y: auto;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        #error-close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: white;
+            color: black;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
         }
         
         ::-webkit-scrollbar { display: none; }
@@ -57,33 +75,47 @@
 </script>
 
     <script>
-        // エラーが発生した際に画面上に表示する
+        // エラー発生時の処理
         window.onerror = function(msg, url, lineNo, columnNo, error) {
+            // 外部スクリプトや拡張機能による「Script error.」は詳細が取れないため無視する
+            if (msg === "Script error." && (!url || url === "")) {
+                console.warn("Ignored cross-origin or extension script error.");
+                return false;
+            }
+
             const display = document.getElementById('error-display');
-            if (display) {
+            const content = document.getElementById('error-content');
+            if (display && content) {
                 display.style.display = 'block';
-                display.innerHTML += `<div>[Error] ${msg}<br/><small>at ${url}:${lineNo}:${columnNo}</small></div><hr/>`;
+                content.innerHTML += `<div style="margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.1)">
+                    <strong>[Error]</strong> ${msg}<br/>
+                    <small style="opacity:0.7">at ${url || 'unknown'}:${lineNo}:${columnNo}</small>
+                </div>`;
             }
             return false;
         };
-        // Promiseの拒否もキャッチ
+
         window.onunhandledrejection = function(event) {
             const display = document.getElementById('error-display');
-            if (display) {
+            const content = document.getElementById('error-content');
+            if (display && content) {
                 display.style.display = 'block';
-                display.innerHTML += `<div>[Unhandled Rejection] ${event.reason}</div><hr/>`;
+                content.innerHTML += `<div>[Unhandled Rejection] ${event.reason}</div><hr/>`;
             }
         };
+
+        function closeError() {
+            document.getElementById('error-display').style.display = 'none';
+        }
     </script>
 </head>
 <body>
     <div id="root"></div>
-    <div id="error-display"></div>
+    <div id="error-display">
+        <button id="error-close" onclick="closeError()">CLOSE</button>
+        <div id="error-content" style="max-height: 200px; overflow-y: auto; font-size: 12px; line-height: 1.4;"></div>
+    </div>
 
-    <!-- 
-      CRITICAL: data-type="module" を指定することで、Babelがimport構文を正しく処理します。
-      また、presetsにtypescriptとreactを指定して .tsx を解釈させます。
-    -->
     <script 
         type="text/babel" 
         data-type="module" 

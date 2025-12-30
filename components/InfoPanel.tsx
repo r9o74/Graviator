@@ -1,312 +1,139 @@
 import React from 'react';
-import { GameStats } from '../types';
+import { GameStats, GameMode } from '../types';
 
 interface InfoPanelProps {
     stats: GameStats | null;
 }
 
 const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
-    // Default values if stats are null (Menu state)
+    const mode = stats?.mode || GameMode.SURVIVAL;
     const speed = stats?.speed || 0;
     const maxSpeed = stats?.maxSpeed || 0;
     const gravity = stats?.gravityForce || 0;
     const maxGravity = stats?.maxGravity || 0;
-    const currentEnemies = stats?.currentEnemies || 7;
-    const initialEnemies = stats?.initialEnemies || 7;
+    const currentEnemies = stats?.currentEnemies || 0;
+    const initialEnemies = stats?.initialEnemies || 10;
     const time = stats?.timeSurvived || 0;
-    const danger = stats?.dangerLevel || 0;
+    const kills = stats?.kills || 0;
 
-    // Calculations for visual bars
-    const speedPercent = Math.min((speed / 800) * 100, 100);
-    const gravityPercent = Math.min((gravity / 10000) * 100, 100);
-    const enemyHealthPercent = (currentEnemies / initialEnemies) * 100;
+    // スケールを調整してメーターの動きを強調
+    const speedPercent = Math.min((speed / Math.max(800, maxSpeed)) * 100, 100);
+    const gravityPercent = Math.min((gravity / Math.max(5000, maxGravity)) * 100, 100);
 
     return (
-        <div className="
-            w-full
-            h-auto
-            bg-transparent
-            grid
-            grid-cols-2
-            gap-x-4
-            gap-y-1
-            p-3
+        <div className="w-full h-auto landscape:h-full bg-transparent flex flex-col p-1 landscape:p-2 gap-1 landscape:gap-1.5 overflow-hidden select-none">
+            <style>{`
+                .liquid-card {
+                    background: rgba(255, 255, 255, 0.03);
+                    backdrop-filter: blur(16px) saturate(180%);
+                    border: 1px solid rgba(255, 255, 255, 0.20);
+                    box-shadow: 0 4px 15px -2px rgba(0, 0, 0, 0.3);
+                }
+                .glow-cyan { box-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
+                .glow-pink { box-shadow: 0 0 10px rgba(236, 72, 153, 0.3); }
+                .glow-white { box-shadow: 0 0 10px rgba(255, 255, 255, 0.2); }
+                .bar-container { background: rgba(255, 255, 255, 0.1); }
+            `}</style>
 
-            landscape:flex
-            landscape:flex-col
-            landscape:h-full
-            landscape:justify-start
-            landscape:p-3
-            landscape:gap-3
-        ">
-            {/* Header */}
-            <div className="
-                col-span-2 
-                landscape:col-span-1 
-                relative z-10 
-                flex 
-                items-center 
-                justify-between
-
-                landscape:block 
-                landscape:shrink-0
-            ">
-                <div className="
-                    text-[10px]
-                    landscape:text-[9px]
-                    text-cyan-500
-                    tracking-[0.3em]
-                    whitespace-nowrap
-                ">PLANET INFO</div>
-
-                <div className="
-                    h-px
-                    flex-1
-                    bg-gradient-to-r from-cyan-500/50 to-transparent
-                    ml-4
-                    landscape:ml-0
-                    landscape:mt-1
-                    landscape:mb-1
-                    landscape:w-full
-                "></div>
+            {/* Header - Hidden in portrait to save space */}
+            <div className="hidden landscape:flex shrink-0 items-center justify-between px-1">
+                <div className="text-[10px] text-cyan-500/80 font-bold tracking-[0.3em] uppercase">System Telemetry</div>
             </div>
 
-            {/* Speed Gauge */}
-            <div className="
-                group
-                relative
-                z-10
-                flex
-                flex-col
-                justify-end
-                landscape:gap-0.5
-                ">
-                <div className="
-                    flex
-                    justify-between
-                    items-end
-                    text-gray-300
-                    mb-0.5
-                    ">
-                    <div className="flex flex-col">
-                        <span className="
-                            text-[9px]
-                            landscape:text-[8px]
-                            text-gray-500
-                            font-comfortaa
-                            font-bold
-                            whitespace-nowrap
-                            ">MAX: <span className = "text-cyan-600">{Math.floor(maxSpeed)}</span></span>
-                        <span className="
-                            text-[10px]
-                            landscape:text-[10px]
-                            tracking-widest
-                            ">速度</span>
-                    </div>
-                    <span className="
-                        text-xl
-                        landscape:text-lg
-                        xl:text-2xl
-                        text-cyan-400
-                        font-fugaz
-                        leading-none
-                        ">
-                        {Math.floor(speed)} <span className="
-                                                text-[9px]
-                                                landscape:text-[10px]
-                                                font-fugaz
-                                                font-bold
-                                                text-cyan-400/60
-                                                ">px/s</span>
-                    </span>
-                </div>
-                <div className="
-                    h-1.5 
-                    landscape:h-1 
-                    xl:landscape:h-1.5 
-                    bg-gray-800 
-                    rounded-sm 
-                    overflow-hidden 
-                    relative 
-                    border 
-                    border-white/5
-                    ">
-                    <div 
-                        className="
-                            h-full 
-                            bg-cyan-500 
-                            shadow-[0_0_10px_rgba(6,182,212,0.6)] 
-                            transition-all 
-                            duration-200 
-                            ease-out"
-                        style={{ width: `${speedPercent}%` }}
-                    ></div>
-                </div>
-            </div>
-
-            {/* Gravity Gauge */}
-            <div className="
-                relative 
-                z-10 
-                flex 
-                flex-col 
-                justify-end
-                landscape:gap-0.5
-                ">
-                <div className="
-                    flex 
-                    justify-between 
-                    items-end 
-                    text-gray-300 
-                    mb-0.5
-                    ">
-                    <div className="flex flex-col">
-                        <span className="
-                            text-[9px] 
-                            landscape:text-[8px] 
-                            text-gray-500 
-                            font-comfortaa 
-                            font-bold 
-                            whitespace-nowrap
-                            ">MAX: <span className = "text-pink-600">{Math.floor(maxGravity)}</span></span>
-                        <span className="
-                            text-[10px] 
-                            landscape:text-[10px] 
-                            tracking-widest
-                            ">引力</span>
-                    </div>
-                    <span className="
-                        text-xl 
-                        landscape:text-lg 
-                        xl:text-2xl 
-                        text-pink-500 
-                        font-fugaz
-                        leading-none
-                        ">
-                        {Math.floor(gravity)} <span className="
-                                                    text-[10px]
-                                                    landscape:text-[11px]
-                                                    font-fugaz
-                                                    font-bold 
-                                                    text-pink-500/60">N</span>
-                    </span>
-                </div>
-                <div className="
-                    h-1.5
-                    landscape:h-1
-                    xl:landscape:h-1.5
-                    bg-gray-800
-                    rounded-sm 
-                    overflow-hidden 
-                    relative 
-                    border 
-                    border-white/5
-                    ">
-                    <div 
-                        className="
-                            h-full 
-                            bg-pink-600 
-                            shadow-[0_0_10px_rgba(236,72,153,0.6)] 
-                            transition-all 
-                            duration-200 
-                            ease-out"
-                        style={{ width: `${gravityPercent}%` }}
-                    ></div>
-                </div>
-            </div>
-
-            {/* Enemies Status */}
-            <div className="
-                relative 
-                z-10 
-                flex 
-                flex-col 
-                justify-center
-                landscape:gap-1
-                ">
-                <div className="
-                    flex 
-                    justify-between 
-                    text-gray-300 
-                    tracking-widest 
-                    mb-0.5 
-                    items-end
-                    ">
-                    <span className="
-                        text-[10px] 
-                        landscape:text-[10px]
-                        ">残り敵数</span>
-                    <span className="
-                        text-sm 
-                        landscape:text-sm 
-                        text-pink-400/70 
-                        font-fugaz 
-                        leading-none
-                        "><span className = 'text-2xl landscape:text-xl text-pink-400'>{currentEnemies}</span>/{initialEnemies}</span>
-                </div>
+            <div className="grid grid-cols-2 gap-1 landscape:gap-1 flex-1 landscape:flex landscape:flex-col landscape:gap-1 min-h-0">
                 
-                <div className="
-                    h-2 
-                    landscape:h-2 
-                    xl:landscape:h-4 
-                    bg-gray-900 
-                    border 
-                    border-pink-500/30 
-                    rounded-sm 
-                    overflow-hidden 
-                    relative 
-                    shadow-[inset_0_0_10px_rgba(0,0,0,0.8)]">
-                    <div className="
-                            h-full
-                            bg-gradient-to-r 
-                            from-pink-900 via-pink-600 to-pink-500 
-                            transition-all 
-                            duration-500 
-                            ease-out 
-                            relative
-                            "
-                        style={{ width: `${enemyHealthPercent}%` }}
-                    >
+                {/* Speed Card */}
+                <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
+                    <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-0.5">
+                        <div className="flex flex-col text-left">
+                            <span className="text-[10px] landscape:text-[14px] text-gray-200 font-bold leading-tight">速度</span>
+                            <span className="text-[8px] landscape:text-[10px] text-gray-500 font-bold font-mono">max: {Math.floor(maxSpeed)}</span>
+                        </div>
+                        <div className="flex items-baseline text-right">
+                            <span className="text-lg landscape:text-2xl xl:text-4xl text-cyan-400 font-fugaz leading-none">
+                                {Math.floor(speed)}
+                            </span>
+                            <span className="text-[8px] landscape:text-[11px] text-cyan-400/50 font-fugaz ml-0.5">px/s</span>
+                        </div>
+                    </div>
+                    <div className="h-1 landscape:xl:h-2 w-full bar-container rounded-full overflow-hidden relative">
+                        <div 
+                            className="h-full bg-cyan-500 transition-all duration-300 ease-out glow-cyan" 
+                            style={{ width: `${speedPercent}%` }}
+                        ></div>
                     </div>
                 </div>
-            </div>
 
-            {/* Mission Time */}
-            <div className="
-                relative 
-                z-10 
-                flex 
-                flex-col 
-                justify-end 
-                ">
-                 <div className="
-                    flex 
-                    justify-between 
-                    items-end 
-                    ">
-                     <div className="
-                        text-[10px] 
-                        landscape:text-[10px] 
-                        text-gray-300 
-                        ">生存時間</div>
-                     <div className="
-                        text-xl 
-                        landscape:text-lg 
-                        text-white 
-                        tracking-widest 
-                        font-fugaz 
-                        leading-none
-                        ">
-                        {time.toFixed(1)}<span className="
-                                            text-[9px] 
-                                            landscape:text-[10px] 
-                                            text-gray-600 
-                                            ml-1 
-                                            font-comfortaa 
-                                            font-bold
-                                            ">s</span>
-                     </div>
-                 </div>
+                {/* Gravity Card */}
+                <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
+                    <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-0.5">
+                        <div className="flex flex-col text-left">
+                            <span className="text-[10px] landscape:text-[14px] text-gray-200 font-bold leading-tight">引力</span>
+                            <span className="text-[8px] landscape:text-[10px] text-gray-500 font-bold font-mono">max: {Math.floor(maxGravity)}</span>
+                        </div>
+                        <div className="flex items-baseline text-right">
+                            <span className="text-lg landscape:text-2xl xl:text-4xl text-pink-500 font-fugaz leading-none">
+                                {Math.floor(gravity)}
+                            </span>
+                            <span className="text-[8px] landscape:text-[11px] text-pink-500/50 font-fugaz ml-0.5">N</span>
+                        </div>
+                    </div>
+                    <div className="h-1 landscape:xl:h-2 w-full bar-container rounded-full overflow-hidden relative">
+                        <div 
+                            className="h-full bg-pink-600 transition-all duration-300 ease-out glow-pink" 
+                            style={{ width: `${gravityPercent}%` }}
+                        ></div>
+                    </div>
+                </div>
+
+                {/* Status Card */}
+                <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
+                    <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-0.5">
+                        <div className="flex flex-col text-left">
+                            <span className="text-[10px] landscape:text-[14px] text-gray-200 font-bold leading-tight">
+                                {mode === GameMode.SURVIVAL ? '残り' : '撃墜数'}
+                            </span>
+                            <span className="text-[8px] landscape:text-[10px] text-gray-500 font-bold font-mono uppercase">mode: {mode}</span>
+                        </div>
+                        <div className="flex items-baseline text-right">
+                            {mode === GameMode.SURVIVAL ? (
+                                <>
+                                    <span className="text-lg landscape:text-2xl xl:text-4xl text-purple-400 font-fugaz leading-none">
+                                        {currentEnemies}
+                                    </span>
+                                    <span className="text-[10px] landscape:text-[12px] text-purple-400/40 font-fugaz ml-0.5">/{initialEnemies}</span>
+                                </>
+                            ) : (
+                                <span className="text-lg landscape:text-2xl xl:text-4xl text-purple-400 font-fugaz leading-none animate-pulse">
+                                    {kills}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="h-1 landscape:xl:h-2 w-full bar-container rounded-full overflow-hidden relative">
+                        <div 
+                            className="h-full bg-gradient-to-r from-purple-800 to-purple-400 transition-all duration-500 glow-purple" 
+                            style={{ width: `${mode === GameMode.SURVIVAL ? (currentEnemies/initialEnemies)*100 : Math.min(kills, 100)}%` }}
+                        ></div>
+                    </div>
+                </div>
+
+                {/* Time Card */}
+                <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
+                    <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-1">
+                        <div className="flex flex-col text-left">
+                            <span className="text-[10px] landscape:text-[14px] text-gray-200 font-bold leading-tight">生存時間</span>
+                            <span className="text-[8px] landscape:text-[10px] text-emerald-500/60 font-bold uppercase tracking-tighter animate-pulse">ACTIVE</span>
+                        </div>
+                        <div className="flex items-baseline text-right">
+                            <span className="text-lg landscape:text-2xl xl:text-4xl text-white font-fugaz leading-none">
+                                {time.toFixed(1)}
+                            </span>
+                            <span className="text-[8px] landscape:text-[11px] text-white/40 font-fugaz ml-0.5 uppercase">sec</span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     );

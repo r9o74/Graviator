@@ -70,7 +70,7 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             down: vectorY > threshold,
             left: vectorX < -threshold,
             right: vectorX > threshold,
-            vector: { x: vectorX, y: vectorY }
+            vector: { x: vectorX * maxRadius, y: vectorY * maxRadius}
         });
     };
 
@@ -115,9 +115,6 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
                     ${active ? 'border-cyan-400/50 bg-cyan-900/20' : 'border-white/30 bg-white/10'}
                 `}
             >
-                {/* Visual Guides */}
-                <div className="absolute inset-0 rounded-full border border-white/20 scale-75"></div>
-                <div className="absolute inset-0 rounded-full border border-white/20 scale-50"></div>
                 
                 {/* Stick */}
                 <div 

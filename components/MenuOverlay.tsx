@@ -1,167 +1,148 @@
-import React from 'react';
-import { GameState } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { GameState, GameMode, GameStats } from '../types';
+import { AudioManager } from '../game/AudioManager';
 
 interface MenuOverlayProps {
     gameState: GameState;
-    onStart: () => void;
+    onStart: (mode: GameMode) => void;
+    onHome: () => void;
+    gameStats: GameStats | null;
 }
 
-const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart }) => {
+const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, gameStats }) => {
+    const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
+    const audio = AudioManager.getInstance();
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            setMousePos({
+                x: e.clientX / window.innerWidth,
+                y: e.clientY / window.innerHeight
+            });
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, []);
+
     if (gameState === GameState.PLAYING) return null;
 
     const isGameOver = gameState === GameState.GAME_OVER;
     const isVictory = gameState === GameState.VICTORY;
     const isMenu = gameState === GameState.MENU;
+    const currentMode = gameStats?.mode || GameMode.SURVIVAL;
 
-    let title = "GRAVIATOR";
+    let title = "GRAVIATOR*";
     let subtitle = "";
-    let buttonText = "START";
     let colorClass = "text-cyan-400";
-    let containerAnimation = "";
-    let titleAnimation = "";
+    let blobColor = "bg-cyan-500";
 
     if (isGameOver) {
-        title = "FAILURE";
-        subtitle = "SIGNAL LOST";
-        buttonText = "RETRY!";
-        colorClass = "text-red-500";
-        containerAnimation = "animate-[shake_0.5s_infinite]";
-        titleAnimation = "animate-[glitch_0.3s_infinite]";
+        title = currentMode === GameMode.ENDLESS ? `${gameStats?.kills || 0} KILLS` : "FAILURE";
+        subtitle = currentMode === GameMode.ENDLESS ? "" : "SIGNAL LOST";
+        colorClass = currentMode === GameMode.ENDLESS ? "text-white-400" : "text-red-500 neon-text-shadow";
+        blobColor = "bg-red-600";
     } else if (isVictory) {
         title = "GAME CLEAR";
         subtitle = "YOU ARE THE LAST SURVIVOR!";
-        buttonText = "PLAY AGAIN";
         colorClass = "text-emerald-400";
-        titleAnimation = "animate-[pulse_1.5s_infinite]";
+        blobColor = "bg-emerald-500";
     }
 
-    // 初回メニューは不透明、終了時は透明なオーバーレイ
-    const wrapperClasses = isMenu 
-        ? "bg-[#050505] z-[100] pointer-events-auto" 
-        : "bg-black/5 z-50 pointer-events-none";
+    const wrapperClasses = isMenu ? "bg-[#050505] z-[100]" : "bg-black/20 backdrop-blur-sm z-50";
+
+    const handleButtonClick = async (mode: GameMode) => {
+        // ロードを待機してから音を鳴らす
+        await audio.resume();
+        audio.playUiClick();
+        onStart(mode);
+    };
+
+    const handleHomeClick = async () => {
+        await audio.resume();
+        audio.playUiClick();
+        onHome();
+    };
+
+    const handleHover = () => {
+        audio.playUiHover();
+    };
 
     return (
-        <div className={`absolute inset-0 flex items-center justify-center transition-colors duration-1000 ${wrapperClasses}`}>
-            
-            <style>
-                {`
-                @keyframes glitch {
-                    0% { transform: translate(0) }
-                    20% { transform: translate(-2px, 2px) }
-                    40% { transform: translate(-2px, -2px) }
-                    60% { transform: translate(2px, 2px) }
-                    80% { transform: translate(2px, -2px) }
-                    100% { transform: translate(0) }
+        <div className={`absolute inset-0 flex items-center justify-center overflow-hidden transition-all duration-1000 ${wrapperClasses}`}>
+            {/* Interactive Liquid Background */}
+            <div className="absolute inset-0 pointer-events-none opacity-30 select-none">
+                <div 
+                    className={`absolute w-[600px] h-[600px] rounded-full mix-blend-screen filter blur-[100px] animate-[liquid_25s_infinite] ${blobColor}`}
+                    style={{ left: `${mousePos.x * 100 - 30}%`, top: `${mousePos.y * 100 - 30}%`, transition: 'left 1s cubic-bezier(0.2, 0, 0.2, 1), top 1s cubic-bezier(0.2, 0, 0.2, 1)' }}
+                />
+                <div 
+                    className={`absolute w-[450px] h-[450px] rounded-full mix-blend-screen filter blur-[80px] animate-[liquid_18s_infinite_reverse] ${isGameOver ? 'bg-orange-600' : 'bg-blue-600'}`}
+                    style={{ right: `${(1 - mousePos.x) * 100 - 20}%`, bottom: `${(1 - mousePos.y) * 100 - 20}%`, transition: 'right 1.5s cubic-bezier(0.2, 0, 0.2, 1), bottom 1.5s cubic-bezier(0.2, 0, 0.2, 1)' }}
+                />
+            </div>
+
+            <style>{`
+                @keyframes liquid {
+                    0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0, 0) scale(1) rotate(0deg); }
+                    33% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; transform: translate(40px, -40px) scale(1.1) rotate(120deg); }
+                    66% { border-radius: 50% 40% 70% 40% / 40% 50% 30% 60%; transform: translate(-40px, 40px) scale(0.9) rotate(240deg); }
                 }
-                @keyframes shake {
-                    0%, 100% { transform: translateX(0) }
-                    25% { transform: translateX(-5px) }
-                    75% { transform: translateX(5px) }
-                }
-                `}
-            </style>
+                .liquid-glass { background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(50px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.7); position: relative; overflow: hidden; }
+            `}</style>
 
-            {/* Title Screen Background Decor */}
-            {isMenu && (
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-black to-black"></div>
-                    <div className="absolute inset-0 bg-[linear-gradient(rgba(20,20,20,0.5)_1px,transparent_1px),linear-gradient(90deg,rgba(20,20,20,0.5)_1px,transparent_1px)] bg-[size:40px_40px] opacity-20"></div>
-                </div>
-            )}
-
-            {/* Game End Glow Effects (Transparent) */}
-            {!isMenu && (
-                <div className={`absolute inset-0 pointer-events-none transition-opacity duration-1000 ${isGameOver ? 'bg-red-900/10' : 'bg-emerald-900/10'}`}></div>
-            )}
-
-            <div className={`
-                relative z-10
-                ${isMenu ? 'bg-black/60 backdrop-blur-3xl' : 'bg-black/20 backdrop-blur'}
-                border 
-                border-white/10 
-                p-12 
-                rounded-3xl 
-                text-center 
-                shadow-2xl 
-                pointer-events-auto 
-                max-w-lg 
-                w-full 
-                transform 
-                transition-all 
-                duration-500
-                hover:border-white/40
-                ${isMenu ? 'shadow-[0_0_100px_rgba(6,182,212,0.1)]' : 'shadow-[0_0_50px_rgba(0,0,0,0.5)]'}
-                ${containerAnimation}
-            `}>
-                <div className="mb-8">
-                    <h1 className={`text-6xl font-black tracking-tighter mb-2 ${colorClass} neon-text-shadow font-fugaz ${titleAnimation}`}>
-                        {title}
-                    </h1>
-                    <p className={`text-white/60 font-mono tracking-[0.3em] text-sm ${isGameOver ? 'animate-pulse' : ''}`}>
-                        {subtitle}
-                    </p>
+            <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center shadow-xl pointer-events-auto max-w-md w-[90%] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'}`}>
+                <div className="mb-3 relative z-10">
+                    <h1 className={`
+                        text-6xl 
+                        md:text-6xl 
+                        font-black 
+                        tracking-tighter 
+                        ${colorClass}  
+                        font-fugaz 
+                        transition-colors 
+                        duration-1000
+                        `}>{title}</h1>
+                    <p className={`
+                        text-white/40 
+                        font-mono 
+                        tracking-[0.4em] 
+                        text-sm 
+                        md:text-md 
+                        uppercase 
+                        mt-2
+                        `}>{subtitle}</p>
                 </div>
 
                 {isMenu && (
-                    <div className="mb-8 text-left bg-white/5 p-6 rounded-lg border border-white/5">
-                        <div className="flex items-center mb-2">
-                            <span className="w-2 h-2 rounded-full bg-cyan-400 mr-3 animate-pulse"></span>
-                            <span className="text-s text-cyan-400 font-fugaz">MISSION</span>
+                    <div className="mb-5 text-left bg-white/[0.02] p-4 rounded-3xl border border-white/5 backdrop-blur-xl relative z-10">
+                        <div className="flex items-center mb-3">
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-700 mr-3 animate-ping"></span>
+                            <span className="text-[15px] text-cyan-500 font-fugaz tracking-[0.2em] uppercase tracking-tighter">MISSION</span>
                         </div>
-                        <ul className="text-white/80 text-sm space-y-2 font-light font-comfortaa">
-                            <li>1. <span className="text-cyan-400 font-bold">青色</span>の星を<span className="text-cyan-400 font-bold">キーボード</span>か<span className="text-cyan-400 font-bold">アナログスティック</span>で操作</li>
-                            <li>2. 画面外に出たら脱落</li>
-                            <li>3. <span className="text-pink-500 font-bold">最後の１人</span>まで生き残れ！</li>
+                        <ul className="text-white/85 text-[11px] md:text-xs space-y-1 font-comfortaa leading-relaxed">
+                            <li className="flex items-start"><span className="text-cyan-500 mr-2 font-bold opacity-70">•</span><span>画面外に出たら<span className="text-pink-500 font-bold">脱落</span>！</span></li>
+                            <li className="flex items-start"><span className="text-cyan-500 mr-2 font-bold opacity-70">•</span><span><span className="text-cyan-400 font-bold">SURVIVAL</span>: 最後の１人まで生き残れ！</span></li>
+                            <li className="flex items-start"><span className="text-cyan-500 mr-2 font-bold opacity-70">•</span><span><span className="text-pink-400 font-bold">ENDLESS</span>: 倒した敵は復活する。限界に挑め！</span></li>
                         </ul>
                     </div>
                 )}
 
-                <button
-                    onClick={onStart}
-                    className={`
-                        group relative px-8 py-4 bg-white/5 hover:bg-white/10 
-                        border border-white/20 hover:border-white/40 
-                        text-white font-mono text-lg tracking-widest transition-all duration-300
-                        overflow-hidden rounded-sm w-full shadow-lg
-                    `}
-                >
-                    <span className='text-2xl z-10 group-hover:text-cyan-300 transition-colors font-fugaz'>
-                        {buttonText}
-                    </span>
-                    <div className="absolute inset-0 bg-cyan-500/10 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></div>
-                </button>
-
-                
-                {!isMenu && (
-                     <div className="mt-6 text-white/30 text-[10px] font-mono animate-pulse uppercase tracking-widest">
-                        {isVictory ? 'Dominance Achieved' : 'Link Severed - System Rerouting'}
-                     </div>
-                )}
-                
-
-                {isMenu && (
-                    <>
-                        <div className="mt-8 flex justify-center space-x-8 text-xs text-white/30 font-mono">
-                            <div className="flex flex-col items-center">
-                                <div className="flex space-x-1">
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">W</div>
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">A</div>
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">S</div>
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">D</div>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <div className="flex space-x-1">
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">↑</div>
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">←</div>
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">↓</div>
-                                    <div className="w-5 h-5 border border-white/30 rounded flex items-center justify-center">→</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mt-2 text-center text-xs text-white/30 font-mono">キーボード 又は アナログスティックで操作</div>
-                    </>
-                )}
+                <div className="flex flex-col gap-3">
+                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(GameMode.SURVIVAL)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                        <span className='relative z-10'>SURVIVAL</span>
+                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                    </button>
+                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(GameMode.ENDLESS)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                        <span className='relative z-10'>ENDLESS</span>
+                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                    </button>
+                    {!isMenu && (
+                        <button onMouseEnter={handleHover} onClick={handleHomeClick} className={`group relative py-3 px-10 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-sm md:text-md tracking-[0.4em] transition-all duration-500 rounded-[20px] w-full overflow-hidden`}>
+                            <span className='relative z-10'>HOME</span>
+                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
