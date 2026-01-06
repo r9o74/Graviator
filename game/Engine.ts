@@ -12,16 +12,16 @@ const GRAVITY_CONSTANT = 40000.0;
 const GRAVITY_MAX = 250000.0;
 const THRUST_FORCE = 1800.0;
 const CPU_THRUST_FORCE = 1800.0;
-const BREAKING_CONSTANT = 2; // 減速力倍率
+const BREAKING_CONSTANT = 3.5; // 減速力倍率
 const WALL_MARGIN = 150; // 減速力強化エリア範囲
-const BREAK_BOOST = 20; // WALL_MARGIN / BREAK_BOOST = 最大倍率増加量
+const BREAK_BOOST = 50; // WALL_MARGIN / BREAK_BOOST = 最大倍率増加量
 const ENEMY_NUMBER_SURVIVAL = 10;
 const ENEMY_NUMBER_ENDLESS = 5;
 const SAFE_DISTANCE = 200;
 const DIST_EXP = 0.88; // 万有引力の式の分母の冪数（DIST_EXP = 1.0 で通常の物理法則）
 const G_LINE_WIDTH = 1;
 const TRAIL_WIDTH = PLAYER_RADIUS / 1.8;
-const FRICTION = 0.000;
+const FRICTION = 0.100;
 const FRICTION_VEL_EXP = 0.0;
 
 
@@ -42,10 +42,10 @@ const LABEL_PHYSICAL_FONT_SIZE = 14; // アイテム使用状況ラベルのフ�
 
 // アイテム設定
 const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
-const ITEM_AREA_RADIUS = 25; // アイテムの当たり判定の大きさ
+const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
 const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
-const ITEM_SPAWN_INTERVAL_MIN = 2.0;
-const ITEM_SPAWN_INTERVAL_MAX = 8.0;
+const ITEM_SPAWN_INTERVAL_MIN = 3.0;
+const ITEM_SPAWN_INTERVAL_MAX = 6.0;
 
 
 // 質量増加：衛星：透明化：重力波：反転：軌斥
@@ -82,7 +82,7 @@ const INVERSION_MULTIPLE_1 = 5.0; // 自分 -> 敵
 const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分
 
 // 軌斥 (Repulsive Trail)
-const REPULSIVE_TRAIL_DURATION = 6.0;
+const REPULSIVE_TRAIL_DURATION = 7.0;
 const REPULSIVE_TRAIL_RESTITUTION = 2.0; // 法線方向反発係数
 const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.5; // 接線方向反発係数
 const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ
@@ -513,11 +513,12 @@ export class GameEngine {
         this.entities.push(new Entity(playerX, playerY, true));
         this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
         const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
+        const SPAWN_PADDING = 50; // 安全マージン
         for (let i = 0; i < this.initialEnemyCount; i++) {
             let x = 0, y = 0, attempts = 0, validPosition = false;
             while (!validPosition && attempts < 20) {
-                x = Math.random() * (this.logicalWidth - PLAYER_RADIUS * 2) + PLAYER_RADIUS;
-                y = Math.random() * (this.logicalHeight - PLAYER_RADIUS * 2) + PLAYER_RADIUS;
+                x = Math.random() * (this.logicalWidth - SPAWN_PADDING * 2) + SPAWN_PADDING;
+                y = Math.random() * (this.logicalHeight - SPAWN_PADDING * 2) + SPAWN_PADDING;
                 const distSq = Math.pow(x - playerX, 2) + Math.pow(y - playerY, 2);
                 if (distSq >= SAFE_DISTANCE_SQ) validPosition = true;
                 attempts++;
@@ -890,8 +891,10 @@ export class GameEngine {
 
     requestSpawnEnemy() {
         let x = 0, y = 0, attempts = 0, valid = false; const player = this.entities.find(e => e.isPlayer);
+        const SPAWN_PADDING = 50; // 安全マージン
         while (!valid && attempts < 20) {
-            x = Math.random() * (this.logicalWidth - PLAYER_RADIUS * 2) + PLAYER_RADIUS; y = Math.random() * (this.logicalWidth - PLAYER_RADIUS * 2) + PLAYER_RADIUS;
+            x = Math.random() * (this.logicalWidth - SPAWN_PADDING * 2) + SPAWN_PADDING; 
+            y = Math.random() * (this.logicalHeight - SPAWN_PADDING * 2) + SPAWN_PADDING;
             if (player) { if (Math.pow(x - player.pos.x, 2) + Math.pow(y - player.pos.y, 2) > Math.pow(SAFE_DISTANCE * 2, 2)) valid = true; } else valid = true;
             attempts++;
         }

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { InputState } from '../types';
 
 interface VirtualJoystickProps {
@@ -7,38 +7,48 @@ interface VirtualJoystickProps {
 
 const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const stickRef = useRef<HTMLDivElement>(null);
     const [active, setActive] = useState(false);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [origin, setOrigin] = useState({ x: 0, y: 0 }); // Screen coordinates relative to container
     
     // Configuration
-    const maxRadius = 50; // Maximum distance the stick can move
-    const deadZone = 5;   // Threshold to register input (Lowered for smoother analog start)
+    const maxRadius = 40; 
+    const deadZone = 5;
+
+    // Helper to update DOM directly for performance
+    const updateStick = (x: number, y: number) => {
+        if (stickRef.current) {
+            stickRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        }
+    };
 
     const handleStart = (clientX: number, clientY: number) => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        
+        // Set origin relative to the container
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        setOrigin({ x, y });
         setActive(true);
-        updatePosition(clientX, clientY);
-    };
-
-    const handleMove = (clientX: number, clientY: number) => {
-        if (!active) return;
-        updatePosition(clientX, clientY);
-    };
-
-    const handleEnd = () => {
-        setActive(false);
-        setPosition({ x: 0, y: 0 });
+        
+        // Reset stick position visually
+        updateStick(0, 0);
+        
+        // Reset input on new touch
         onInput({ up: false, down: false, left: false, right: false, vector: { x: 0, y: 0 } });
     };
 
-    const updatePosition = (clientX: number, clientY: number) => {
-        if (!containerRef.current) return;
-
+    const handleMove = (clientX: number, clientY: number) => {
+        if (!active || !containerRef.current) return;
+        
         const rect = containerRef.current.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+        const currentX = clientX - rect.left;
+        const currentY = clientY - rect.top;
 
-        const dx = clientX - centerX;
-        const dy = clientY - centerY;
+        const dx = currentX - origin.x;
+        const dy = currentY - origin.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         // Limit the stick movement to maxRadius
@@ -51,27 +61,32 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             clampedY = Math.sin(angle) * maxRadius;
         }
 
-        setPosition({ x: clampedX, y: clampedY });
+        // Direct DOM update to avoid React render cycle lag
+        updateStick(clampedX, clampedY);
 
         // Calculate analog vector input (-1.0 to 1.0)
         let vectorX = 0;
         let vectorY = 0;
 
         if (distance > deadZone) {
-            // Normalize based on maxRadius to get a smooth 0.0 to 1.0 range
             vectorX = clampedX / maxRadius;
             vectorY = clampedY / maxRadius;
         }
 
-        // Send both digital flags (for compatibility) and accurate analog vector
         const threshold = 0.3;
         onInput({
             up: vectorY < -threshold,
             down: vectorY > threshold,
             left: vectorX < -threshold,
             right: vectorX > threshold,
-            vector: { x: vectorX * maxRadius, y: vectorY * maxRadius}
+            vector: { x: vectorX * maxRadius, y: vectorY * maxRadius} // Pass raw vector for engine scaling
         });
+    };
+
+    const handleEnd = () => {
+        setActive(false);
+        updateStick(0, 0);
+        onInput({ up: false, down: false, left: false, right: false, vector: { x: 0, y: 0 } });
     };
 
     // Mouse Events
@@ -82,21 +97,22 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
 
     // Touch Events
     const onTouchStart = (e: React.TouchEvent) => {
-        e.preventDefault();
+        // e.preventDefault(); // Prevented by CSS touch-action usually
         handleStart(e.touches[0].clientX, e.touches[0].clientY);
     };
     const onTouchMove = (e: React.TouchEvent) => {
-        e.preventDefault();
+        // e.preventDefault();
         handleMove(e.touches[0].clientX, e.touches[0].clientY);
     };
     const onTouchEnd = (e: React.TouchEvent) => {
-        e.preventDefault();
+        // e.preventDefault();
         handleEnd();
     };
 
     return (
         <div 
-            className="relative w-full h-full flex items-center justify-center select-none touch-none"
+            ref={containerRef}
+            className="relative w-full h-full select-none touch-none overflow-hidden cursor-crosshair group"
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -105,38 +121,38 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            {/* Base */}
-            <div 
-                ref={containerRef}
-                className={`
-                    w-28 h-28 rounded-full border-2 
-                    flex items-center justify-center
-                    transition-colors duration-200
-                    ${active ? 'border-cyan-400/50 bg-cyan-900/20' : 'border-white/30 bg-white/10'}
-                `}
-            >
-                
-                {/* Stick */}
-                <div 
-                    className={`
-                        w-12 h-12 rounded-full shadow-[0_0_20px_rgba(0,0,0,0.8)]
-                        transition-transform duration-75
-                        flex items-center justify-center
-                        ${active ? 'bg-cyan-500 shadow-[0_0_25px_rgba(6,182,212,0.6)]' : 'bg-white/20'}
-                    `}
-                    style={{
-                        transform: `translate(${position.x}px, ${position.y}px)`
-                    }}
-                >
-                    {/* Inner detail (Glassmorphic) */}
-                    <div className="w-6 h-6 rounded-full bg-white/30 backdrop-blur-sm border border-white/20"></div>
-                </div>
+            {/* Simple Idle Guide */}
+            <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 pointer-events-none ${active ? 'opacity-0' : 'opacity-100'}`}>
+                 <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-full border border-white/5 flex items-center justify-center animate-pulse">
+                        <div className="w-1 h-1 bg-cyan-400/30 rounded-full"></div>
+                    </div>
+                    <span className="mt-2 text-[10px] text-cyan-500/40 font-mono tracking-widest uppercase">TOUCH</span>
+                 </div>
             </div>
-            
-            {/* Minimal Indicators */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-px h-full bg-white/5 absolute"></div>
-                <div className="h-px w-full bg-white/5 absolute"></div>
+
+            {/* Lightweight Joystick Visuals */}
+            <div 
+                className="absolute pointer-events-none will-change-transform"
+                style={{ 
+                    left: origin.x, 
+                    top: origin.y, 
+                    opacity: active ? 1 : 0,
+                    transform: 'translate(-50%, -50%)',
+                    transition: 'opacity 0.1s ease-out'
+                }}
+            >
+                {/* Simple Ring Base */}
+                <div className="w-24 h-24 rounded-full border border-cyan-500/30 bg-black/40 flex items-center justify-center relative shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+                    {/* Stick */}
+                    <div 
+                        ref={stickRef}
+                        className="w-8 h-8 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] will-change-transform"
+                        style={{
+                            transform: `translate3d(0, 0, 0)`
+                        }}
+                    ></div>
+                </div>
             </div>
         </div>
     );

@@ -117,10 +117,11 @@ function App() {
         <div className="relative w-screen h-screen bg-black overflow-hidden select-none flex flex-col landscape:flex-row">
             {/* Sidebar (Landscape) */}
             <div className="hidden landscape:flex flex-col w-64 bg-[#080808] border-r border-white/10 shrink-0 relative z-30 shadow-[10px_0_30px_rgba(0,0,0,0.5)] h-full overflow-hidden">
-                <div className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <div className="w-full shrink-0">
                     <InfoPanel stats={gameStats} />
                 </div>
-                <div className="w-full h-32 shrink-0 border-t border-white/5 bg-[#050505] flex items-center justify-center relative z-40">
+                {/* The joystick takes all remaining vertical space */}
+                <div className="w-full flex-1 border-t border-white/5 bg-[#050505] relative z-40">
                      <VirtualJoystick onInput={handleJoystickInput} />
                 </div>
             </div>
