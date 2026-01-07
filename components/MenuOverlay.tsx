@@ -55,7 +55,17 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
         blobColor = "bg-amber-500";
     }
 
-    const wrapperClasses = isMenu ? "bg-[#050505] z-[100]" : "bg-black/20 backdrop-blur-sm z-50";
+    // 背景スタイルの条件分岐
+    let wrapperClasses = "";
+    if (isMenu) {
+        wrapperClasses = "bg-[#050505] z-[100]";
+    } else if (isPaused) {
+        // 一時停止中はぼかしを弱く (2px)、背景色も少し薄く
+        wrapperClasses = "bg-black/10 backdrop-blur-[2px] z-50";
+    } else {
+        // ゲームオーバー/クリア時は標準のぼかし
+        wrapperClasses = "bg-black/20 backdrop-blur-sm z-50";
+    }
 
     const handleButtonClick = async (mode: GameMode) => {
         // ロードを待機してから音を鳴らす
@@ -106,7 +116,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
             <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center shadow-xl pointer-events-auto max-w-md w-[90%] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'}`}>
                 <div className="mb-3 relative z-10">
                     <h1 className={`
-                        text-6xl 
+                        text-5xl 
                         md:text-6xl 
                         font-black 
                         tracking-tighter 

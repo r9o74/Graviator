@@ -37,7 +37,12 @@ function App() {
     };
 
     const handleGoHome = () => {
-        setGameState(GameState.MENU);
+        // エンジンの状態も更新して同期を保つ
+        if (engineRef.current) {
+            engineRef.current.setGameState(GameState.MENU);
+        } else {
+            setGameState(GameState.MENU);
+        }
     };
 
     const handleResume = () => {
@@ -103,15 +108,45 @@ function App() {
 
         const onKeyDown = (e: KeyboardEvent) => {
             handleKey(e, true);
-            if (e.key === 'Enter' || e.code === 'Space') {
-                const current = gameStateRef.current;
-                if (current === GameState.MENU || current === GameState.GAME_OVER || current === GameState.VICTORY) {
-                    // Refから最新のモードを取得してスタート
+            
+            const current = gameStateRef.current;
+            const key = e.key.toLowerCase();
+            const code = e.code;
+
+            // プレイ中：スペースキーで一時停止
+            if (current === GameState.PLAYING) {
+                if (code === 'Space') {
+                    e.preventDefault(); 
+                    if (engineRef.current) engineRef.current.togglePause();
+                }
+            }
+            // 一時停止中
+            else if (current === GameState.PAUSED) {
+                // スペースキーで再開
+                if (code === 'Space') {
+                    e.preventDefault();
+                    if (engineRef.current) engineRef.current.togglePause();
+                }
+                // バックスペースキーでホーム画面に戻る
+                else if (key === 'backspace') {
+                     e.preventDefault(); 
+                     if (engineRef.current) engineRef.current.setGameState(GameState.MENU);
+                }
+            }
+            // メニューまたはリザルト画面
+            else if (current === GameState.MENU || current === GameState.GAME_OVER || current === GameState.VICTORY) {
+                if (key === 's') {
+                    handleStartGame(GameMode.SURVIVAL);
+                } else if (key === 'e') {
+                    handleStartGame(GameMode.ENDLESS);
+                } else if (code === 'Enter' || code === 'Space') {
+                    e.preventDefault();
                     if (engineRef.current) engineRef.current.start(currentModeRef.current);
                 }
             }
-            if (e.key === 'Escape') {
-                const current = gameStateRef.current;
+
+            // Escapeキーでのポーズ切り替え（既存機能維持）
+            if (code === 'Escape') {
                 if (current === GameState.PLAYING || current === GameState.PAUSED) {
                     if (engineRef.current) engineRef.current.togglePause();
                 }
@@ -159,7 +194,7 @@ function App() {
                 {gameState === GameState.PLAYING && (
                     <button 
                         onClick={handlePauseToggle}
-                        className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-sm transition-all duration-300 group"
+                        className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all duration-300 group"
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-white/70 group-hover:text-white transition-colors">
                             <rect x="6" y="4" width="4" height="16" rx="1" strokeWidth="2" />
