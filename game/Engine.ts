@@ -44,8 +44,8 @@ const LABEL_PHYSICAL_FONT_SIZE = 14; // アイテム使用状況ラベルのフ�
 const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
 const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
 const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
-const ITEM_SPAWN_INTERVAL_MIN = 3.0;
-const ITEM_SPAWN_INTERVAL_MAX = 3.0;
+const ITEM_SPAWN_INTERVAL_MIN = 2.0;
+const ITEM_SPAWN_INTERVAL_MAX = 6.0;
 
 
 // 質量増加：衛星：透明化：重力波：反転：軌斥
