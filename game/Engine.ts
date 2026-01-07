@@ -26,6 +26,8 @@ const FRICTION_VEL_EXP = 0.0;
 
 
 const BASE_LOGICAL_SIZE = IS_MOBILE ? 800 : 700;
+const BASE_AREA = BASE_LOGICAL_SIZE * BASE_LOGICAL_SIZE; // 基準となる面積定数
+
 const TRAIL_LENGTH = 100; 
 const COLOR_PLAYER = '#00F0FF'; // シアン
 const COLOR_ENEMY = '#FF0055'; // マゼンタ
@@ -93,7 +95,7 @@ const CAPTURE_DURATION = 8.0;
 const CAPTURE_RADIUS = 70.0;
 
 
-enum ItemType {
+export enum ItemType {
     MASS_BOOST,
     SATELLITE,
     INVISIBILITY,
@@ -196,7 +198,7 @@ class Particle {
     }
 }
 
-class Item {
+export class Item {
     pos: Vector2;
     type: ItemType;
     angle: number = 0;
@@ -576,7 +578,7 @@ class Entity {
 
 export class GameEngine {
     canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; audio: AudioManager;
-    width: number = 0; height: number = 0; logicalWidth: number = 0; logicalHeight: number = 0; scaleFactor: number = 1; dpr: number = 1;
+    width: number = 0; height: number = 0; logicalWidth: number = 0; logicalHeight: number = 0; logicalArea: number = 0; scaleFactor: number = 1; dpr: number = 1;
     entities: Entity[] = []; particles: Particle[] = []; items: Item[] = []; gravityWaves: GravityWave[] = [];
     gameState: GameState = GameState.MENU; gameMode: GameMode = GameMode.SURVIVAL;
     input: InputState = { up: false, down: false, left: false, right: false };
@@ -609,6 +611,7 @@ export class GameEngine {
             const minDimension = Math.min(this.width, this.height);
             this.scaleFactor = Math.max(0.1, minDimension / BASE_LOGICAL_SIZE);
             this.logicalWidth = this.width / this.scaleFactor; this.logicalHeight = this.height / this.scaleFactor;
+            this.logicalArea = this.logicalWidth * this.logicalHeight;
         }
     }
 
