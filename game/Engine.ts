@@ -36,6 +36,7 @@ const COLOR_ITEM_STEALTH = '#646464'; // 灰色
 const COLOR_ITEM_WAVE = '#BF40BF'; // 紫
 const COLOR_ITEM_INVERSION = '#32CD32'; // 緑
 const COLOR_ITEM_REPULSIVE = '#FF3300'; // 赤
+const COLOR_ITEM_CAPTURE = '#FF8C00'; // ダークオレンジ（強奪）
 
 const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ
 const LABEL_PHYSICAL_FONT_SIZE = 14; // アイテム使用状況ラベルのフォントサイズ
@@ -45,11 +46,11 @@ const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
 const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
 const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
 const ITEM_SPAWN_INTERVAL_MIN = 2.0;
-const ITEM_SPAWN_INTERVAL_MAX = 6.0;
+const ITEM_SPAWN_INTERVAL_MAX = 5.0;
 
 
-// 質量増加：衛星：透明化：重力波：反転：軌斥
-const item_ratio = [1, 1, 1, 1, 1, 1]; // アイテム出現比率
+// 質量増加：衛星：透明化：重力波：反転：軌斥：強奪
+const item_ratio = [1, 1, 1, 1, 1, 1, 1]; // アイテム出現比率
 
 
 // 質量増加
@@ -70,11 +71,11 @@ const STEALTH_TOTAL_DURATION = STEALTH_FADE_DURATION * 2 + STEALTH_INVIS_DURATIO
 const GRAVITY_REDUCTION = 0.30; 
 
 // 重力波
-const WAVE_SPEED = 800.0;
+const WAVE_SPEED = 700.0;
 const WAVE_FORCE = 45000.0;
 const WAVE_DURATION = 0.15;
 const WAVE_INTERVAL = 1.0;
-const WAVE_MAX_RADIUS = 700.0; // 射程
+const WAVE_MAX_RADIUS = 600.0; // 射程
 
 // 反転
 const INVERSION_DURATION = 7.0;
@@ -87,6 +88,9 @@ const REPULSIVE_TRAIL_RESTITUTION = 2.0; // 法線方向反発係数
 const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.5; // 接線方向反発係数
 const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ
 
+// 強奪 (Capture)
+const CAPTURE_DURATION = 8.0;
+const CAPTURE_RADIUS = 70.0;
 
 
 enum ItemType {
@@ -95,7 +99,8 @@ enum ItemType {
     INVISIBILITY,
     GRAVITY_WAVE,
     INVERSION,
-    REPULSIVE_TRAIL
+    REPULSIVE_TRAIL,
+    CAPTURE
 }
 
 interface Point { x: number; y: number; isRepulsive?: boolean; }
@@ -212,6 +217,8 @@ class Item {
         else if (this.type === ItemType.GRAVITY_WAVE) color = COLOR_ITEM_WAVE;
         else if (this.type === ItemType.INVERSION) color = COLOR_ITEM_INVERSION;
         else if (this.type === ItemType.REPULSIVE_TRAIL) color = COLOR_ITEM_REPULSIVE;
+        else if (this.type === ItemType.CAPTURE) color = COLOR_ITEM_CAPTURE;
+        
         const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
         ctx.shadowBlur = 15 + pulse * 10;
         ctx.shadowColor = color;
@@ -243,8 +250,24 @@ class Item {
                 const r = size * (i % 2 === 0 ? 1.0 : 0.4);
                 ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
             }
+        } else if (this.type === ItemType.CAPTURE) {
+            // Hexagon with dot
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                ctx.lineTo(Math.cos(angle) * size, Math.sin(angle) * size);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#000000'; // Hole
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            // Restore color for stroke
+            ctx.fillStyle = color;
         }
-        ctx.closePath(); ctx.fill();
+        ctx.closePath(); 
+        if (this.type !== ItemType.CAPTURE) ctx.fill(); 
+        
         ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2 / scaleFactor; ctx.stroke();
         ctx.restore();
     }
@@ -259,6 +282,7 @@ class Entity {
     stealthOpacity: number = 1.0;
     inversionTimer: number = 0;
     repulsiveTrailTimer: number = 0;
+    captureTimer: number = 0;
     waveChargeCount: number = 0;
     waveChargeTimer: number = 0;
     waveForce: Vector2 = new Vector2();
@@ -285,6 +309,7 @@ class Entity {
 
     isStealthActive(): boolean { return this.stealthTimer > 0; }
     isInversionActive(): boolean { return this.inversionTimer > 0; }
+    isCaptureActive(): boolean { return this.captureTimer > 0; }
     isTargetable(): boolean {
         if (this.isPlayer) return this.stealthTimer <= 0;
         return this.stealthOpacity > 0.1;
@@ -296,6 +321,7 @@ class Entity {
             if (this.powerupTimer <= 0) { this.massMultiplier = 1.0; this.thrustMultiplier = 1.0; }
         }
         if (this.inversionTimer > 0) this.inversionTimer -= dt;
+        if (this.captureTimer > 0) this.captureTimer -= dt;
         
         // Repulsive Trail Logic
         if (this.repulsiveTrailTimer > 0) {
@@ -363,10 +389,11 @@ class Entity {
     }
 
     draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        if (this.stealthOpacity <= 0 && this.repulsiveTrailTimer <= 0) return;
+        if (this.stealthOpacity <= 0 && this.repulsiveTrailTimer <= 0 && !this.isCaptureActive()) return;
 
         const isPowered = this.massMultiplier > 1.0;
         const isInverted = this.isInversionActive();
+        const isCapturing = this.isCaptureActive();
         
         // 本体描画：透明度の影響を受ける
         ctx.save(); 
@@ -430,37 +457,61 @@ class Entity {
             }
         }
 
+        // Capture Range Aura (常に表示)
+        if (isCapturing) {
+            ctx.save();
+            ctx.strokeStyle = COLOR_ITEM_CAPTURE;
+            ctx.lineWidth = 1 / scaleFactor;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.arc(this.pos.x, this.pos.y, CAPTURE_RADIUS, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = COLOR_ITEM_CAPTURE;
+            ctx.globalAlpha = 0.1;
+            ctx.fill();
+            ctx.restore();
+        }
+
         if (this.stealthOpacity > 0) {
             const auraPulse = (Math.sin(Date.now() / 100) + 1) / 2;
 
-            if (isPowered || this.isSatellite || isInverted) {
-                ctx.shadowBlur = ((this.isSatellite ? 10 : 30) + auraPulse * 20) * blurFactor;
-                ctx.shadowColor = isInverted ? COLOR_ITEM_INVERSION : this.color;
-                
-                if (isPowered && isInverted) {
-                    // 同時使用時の2重リング描画
-                    ctx.lineWidth = 2.5 / scaleFactor;
-                    
-                    // 内側：反転（Repulse）＝ 緑
-                    ctx.strokeStyle = COLOR_ITEM_INVERSION; 
-                    ctx.beginPath(); 
-                    ctx.arc(this.pos.x, this.pos.y, this.radius * (1.4 + auraPulse * 0.20), 0, Math.PI * 2); 
-                    ctx.stroke();
+            // リング描画（動的調整）
+            const activeEffects = [];
+            // 優先順位: 外側から 質量増加(Mass) -> 反転(Invert) -> 奪取(Capture)
+            // 描画ループで半径を広げていくため、リストには「内側 -> 外側」の順で追加する
+            // つまり: Capture -> Invert -> Mass
+            if (isCapturing) activeEffects.push({ color: COLOR_ITEM_CAPTURE, glow: 10 });
+            if (isInverted) activeEffects.push({ color: COLOR_ITEM_INVERSION, glow: 10 });
+            if (isPowered) activeEffects.push({ color: this.color, glow: 15 });
 
-                    // 外側：質量増加（Heavy）＝ プレイヤーカラー (this.color)
-                    ctx.strokeStyle = this.color; 
-                    ctx.beginPath(); 
-                    ctx.arc(this.pos.x, this.pos.y, this.radius * (2.0 + auraPulse * 0.30), 0, Math.PI * 2); 
+            const effectCount = activeEffects.length;
+
+            if (effectCount > 0) {
+                activeEffects.forEach((effect, index) => {
+                    let rBase = 1.5;
+                    let widthBase = 4.0;
+                    
+                    if (effectCount === 1) {
+                        rBase = 1.6;
+                        widthBase = 4.0;
+                    } else if (effectCount === 2) {
+                        rBase = 1.5 + (index * 0.5); // 1.5, 2.0
+                        widthBase = 3.0;
+                    } else if (effectCount === 3) {
+                        rBase = 1.4 + (index * 0.4); // 1.4, 1.8, 2.2
+                        widthBase = 2.5;
+                    }
+                    
+                    ctx.shadowBlur = effect.glow * blurFactor;
+                    ctx.shadowColor = effect.color;
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = widthBase / scaleFactor;
+                    
+                    ctx.beginPath();
+                    // パルスは全リング同期させる
+                    ctx.arc(this.pos.x, this.pos.y, this.radius * (rBase + auraPulse * 0.2), 0, Math.PI * 2);
                     ctx.stroke();
-                } 
-                else if (isPowered || isInverted) {
-                    // 単独使用時のリング描画
-                    ctx.strokeStyle = isInverted ? COLOR_ITEM_INVERSION : this.color;
-                    ctx.lineWidth = 4 / scaleFactor; 
-                    ctx.beginPath(); 
-                    ctx.arc(this.pos.x, this.pos.y, this.radius * (1.5 + auraPulse * 0.3), 0, Math.PI * 2); 
-                    ctx.stroke();
-                }
+                });
             }
 
             ctx.shadowBlur = (isPowered ? 40 : (this.isSatellite ? 15 : 30)) * blurFactor;
@@ -473,7 +524,7 @@ class Entity {
         ctx.restore(); // 本体描画終了、不透明度設定リセット
 
         // ラベル描画：透明度の影響を受けない（特にプレイヤー）
-        if (this.isPlayer || ((isPowered || isInverted) && this.stealthOpacity > 0.5)) {
+        if (this.isPlayer || ((isPowered || isInverted || isCapturing) && this.stealthOpacity > 0.5)) {
             ctx.save();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             const fontSize = Math.round(LABEL_PHYSICAL_FONT_SIZE / scaleFactor);
@@ -482,11 +533,13 @@ class Entity {
             if (isPowered) label = "HEAVY";
             if (isInverted) label = "REPULS";
             if (this.repulsiveTrailTimer > 0) label = "TRAIL";
+            if (isCapturing) label = "CAPTURE";
 
             let label_dist = 20;
             if (isPowered) label_dist += 4;
             if (isInverted) label_dist += 4;
             if (this.repulsiveTrailTimer > 0) label_dist += 4;
+            if (isCapturing) label_dist += 4;
             if (this.isStealthActive()) label_dist += 4;
             
             const labelY = this.pos.y - (label_dist / scaleFactor);
@@ -503,6 +556,7 @@ class Entity {
             if (this.stealthTimer > 0) effects.push({ ratio: this.stealthTimer / STEALTH_TOTAL_DURATION, color: COLOR_ITEM_STEALTH });
             if (this.inversionTimer > 0) effects.push({ ratio: this.inversionTimer / INVERSION_DURATION, color: COLOR_ITEM_INVERSION });
             if (this.repulsiveTrailTimer > 0) effects.push({ ratio: this.repulsiveTrailTimer / REPULSIVE_TRAIL_DURATION, color: COLOR_ITEM_REPULSIVE });
+            if (this.captureTimer > 0) effects.push({ ratio: this.captureTimer / CAPTURE_DURATION, color: COLOR_ITEM_CAPTURE });
 
             for (const effect of effects) {
                 // 背景
@@ -644,6 +698,20 @@ export class GameEngine {
         const color = Math.random() > 0.8 ? '#FFFFFF' : entity.color;
         this.particles.push(new Particle(entity.pos.x + offset.x, entity.pos.y + offset.y, particleVel, color));
     }
+    
+    spawnTransferParticles(from: Entity, to: Entity, color: string) {
+        const count = 10;
+        for (let i = 0; i < count; i++) {
+            const t = Math.random();
+            const startX = from.pos.x + (Math.random() - 0.5) * from.radius * 2;
+            const startY = from.pos.y + (Math.random() - 0.5) * from.radius * 2;
+            const dirX = to.pos.x - startX;
+            const dirY = to.pos.y - startY;
+            const dist = Math.sqrt(dirX*dirX + dirY*dirY);
+            const vel = new Vector2(dirX/dist * 300, dirY/dist * 300);
+            this.particles.push(new Particle(startX, startY, vel, color, 0.8));
+        }
+    }
 
     updateCpu(cpu: Entity) {
         if (!cpu.isCpu) return;
@@ -736,7 +804,8 @@ export class GameEngine {
             else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2])/sum_ratio) type = ItemType.INVISIBILITY;
             else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3])/sum_ratio) type = ItemType.GRAVITY_WAVE;
             else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3]+item_ratio[4])/sum_ratio) type = ItemType.INVERSION;
-            else type = ItemType.REPULSIVE_TRAIL;
+            else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3]+item_ratio[4]+item_ratio[5])/sum_ratio) type = ItemType.REPULSIVE_TRAIL;
+            else type = ItemType.CAPTURE;
 
             this.items.push(new Item(x, y, type));
             this.itemSpawnTimer = ITEM_SPAWN_INTERVAL_MIN + Math.random() * (ITEM_SPAWN_INTERVAL_MAX - ITEM_SPAWN_INTERVAL_MIN);
@@ -762,6 +831,8 @@ export class GameEngine {
                     else if (item.type === ItemType.REPULSIVE_TRAIL) { 
                         entity.repulsiveTrailTimer = REPULSIVE_TRAIL_DURATION; 
                         entity.trail = []; // Reset trail immediately to remove previous trail visuals
+                    } else if (item.type === ItemType.CAPTURE) {
+                        entity.captureTimer = CAPTURE_DURATION;
                     }
 
                     this.audio.playVictory(); this.flashOpacity = entity.isPlayer ? 0.4 : 0.2;
@@ -771,6 +842,8 @@ export class GameEngine {
                     else if (item.type === ItemType.GRAVITY_WAVE) fColor = COLOR_ITEM_WAVE;
                     else if (item.type === ItemType.INVERSION) fColor = COLOR_ITEM_INVERSION;
                     else if (item.type === ItemType.REPULSIVE_TRAIL) fColor = COLOR_ITEM_REPULSIVE;
+                    else if (item.type === ItemType.CAPTURE) fColor = COLOR_ITEM_CAPTURE;
+                    
                     this.flashColor = fColor; itemConsumed = true;
                     for (let p = 0; p < 30; p++) {
                         const angle = Math.random() * Math.PI * 2; const speed = 100 + Math.random() * 200;
@@ -782,6 +855,75 @@ export class GameEngine {
             }
             if (itemConsumed) this.items.splice(i, 1);
         }
+        
+        // Capture Logic: Steal buffs
+        for (const capturer of this.entities) {
+            if (capturer.captureTimer <= 0) continue;
+
+            for (const victim of this.entities) {
+                if (capturer === victim || victim.isSatellite) continue; 
+                if (victim.owner === capturer || capturer.owner === victim) continue;
+
+                // Check distance
+                const dx = capturer.pos.x - victim.pos.x;
+                const dy = capturer.pos.y - victim.pos.y;
+                const distSq = dx*dx + dy*dy;
+                
+                if (distSq < CAPTURE_RADIUS * CAPTURE_RADIUS) {
+                    let stoleSomething = false;
+
+                    // Steal Powerup
+                    if (victim.powerupTimer > 0) {
+                        capturer.powerupTimer = Math.max(capturer.powerupTimer, victim.powerupTimer);
+                        capturer.massMultiplier = MASS_BOOST_MULTIPLIER;
+                        capturer.thrustMultiplier = MASS_BOOST_MULTIPLIER;
+                        victim.powerupTimer = 0;
+                        victim.massMultiplier = 1.0;
+                        victim.thrustMultiplier = 1.0;
+                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_MASS);
+                        stoleSomething = true;
+                    }
+                    // Steal Stealth
+                    if (victim.stealthTimer > 0) {
+                        capturer.stealthTimer = Math.max(capturer.stealthTimer, victim.stealthTimer);
+                        victim.stealthTimer = 0;
+                        victim.stealthOpacity = 1.0;
+                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_STEALTH);
+                        stoleSomething = true;
+                    }
+                    // Steal Inversion
+                    if (victim.inversionTimer > 0) {
+                        capturer.inversionTimer = Math.max(capturer.inversionTimer, victim.inversionTimer);
+                        victim.inversionTimer = 0;
+                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_INVERSION);
+                        stoleSomething = true;
+                    }
+                    // Steal Repulsive Trail
+                    if (victim.repulsiveTrailTimer > 0) {
+                        capturer.repulsiveTrailTimer = Math.max(capturer.repulsiveTrailTimer, victim.repulsiveTrailTimer);
+                        capturer.trail = []; // Reset capturer trail to be safe
+                        
+                        victim.repulsiveTrailTimer = 0;
+                        victim.trail.forEach(p => p.isRepulsive = false); // Clear victim trail effect
+                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_REPULSIVE);
+                        stoleSomething = true;
+                    }
+                     // Steal Gravity Wave Charges
+                    if (victim.waveChargeCount > 0) {
+                        capturer.waveChargeCount += victim.waveChargeCount;
+                        capturer.waveChargeTimer = 0.01; // Trigger soon
+                        victim.waveChargeCount = 0;
+                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
+                        stoleSomething = true;
+                    }
+                    
+                    if (stoleSomething) {
+                        this.audio.playUiHover(); // Little sound for stealing
+                    }
+                }
+            }
+        }
+        
         const player = this.entities.find(e => e.isPlayer);
         let playerTotalGravityForce = 0, minDangerDist = Infinity;
         if (player) {

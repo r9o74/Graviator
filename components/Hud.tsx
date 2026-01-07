@@ -42,22 +42,7 @@ const Hud: React.FC = () => {
             <div className="absolute top-1/2 left-4 w-1 h-12 bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
             <div className="absolute top-1/2 right-4 w-1 h-12 bg-gradient-to-b from-transparent via-white/20 to-transparent"></div>
 
-            {/* Bottom Bar Area */}
-            <div className="flex justify-between items-end">
-                 <div className="flex items-center space-x-4">
-                     <div className="text-[9px] text-white/30 font-mono tracking-widest border-l-2 border-white/10 pl-2">
-                         COORD: <span className="text-white/60">{Math.floor(Math.random() * 999)}.{Math.floor(Math.random() * 99)}</span>
-                     </div>
-                     <div className="text-[9px] text-white/30 font-mono tracking-widest hidden sm:block">
-                         VELOCITY: <span className="text-cyan-400/80">NOMINAL</span>
-                     </div>
-                 </div>
-                 
-                 <div className="text-right">
-                     <div className="text-[40px] leading-none font-bold font-mono text-white/5 opacity-50">05</div>
-                     <div className="text-[9px] text-white/20 font-mono tracking-[0.3em] uppercase -mt-1">Sector V</div>
-                 </div>
-            </div>
+
             
             {/* Warning Borders - Decorative */}
             <div className="absolute top-4 left-4 w-16 h-16 border-l-2 border-t-2 border-cyan-500/20 rounded-tl-lg pointer-events-none"></div>
