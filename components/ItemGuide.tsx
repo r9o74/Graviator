@@ -8,13 +8,13 @@ interface ItemInfo {
 }
 
 const ITEM_INFOS: ItemInfo[] = [
-    { type: ItemType.MASS_BOOST, name: "MASS BOOST", desc: "質量と推力が大幅に増加し、敵を押し返す力が強くなる。" },
-    { type: ItemType.SATELLITE, name: "SATELLITE", desc: "周囲に7つの衛星を展開し、接近する敵を自動迎撃する。" },
-    { type: ItemType.INVISIBILITY, name: "STEALTH", desc: "敵から認識されなくなり、安全に移動できる。" },
-    { type: ItemType.GRAVITY_WAVE, name: "G-WAVE", desc: "周囲に強力な重力波を放ち、範囲内の敵を弾き飛ばす。" },
-    { type: ItemType.INVERSION, name: "INVERSION", desc: "引力を斥力に反転させ、近づく敵を遠ざける。" },
-    { type: ItemType.REPULSIVE_TRAIL, name: "TRAIL", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
-    { type: ItemType.CAPTURE, name: "CAPTURE", desc: "接触した敵から強化効果を奪い取る。" },
+    { type: ItemType.MASS_BOOST, name: "質量増加", desc: "質量が大幅に増加し、敵を引き寄せる力が強くなる。" },
+    { type: ItemType.SATELLITE, name: "衛星", desc: "周囲に7つの衛星を発射し、近くの敵を自動で迎撃する。" },
+    { type: ItemType.INVISIBILITY, name: "透明化", desc: "敵から認識されなくなる。一部アイテムの影響も受けなくなる" },
+    { type: ItemType.GRAVITY_WAVE, name: "重力波", desc: "周囲に強力な重力波を放ち、範囲内の敵を弾き飛ばす。" },
+    { type: ItemType.INVERSION, name: "反転", desc: "引力を斥力に反転させ、近づく敵を押し返す。" },
+    { type: ItemType.REPULSIVE_TRAIL, name: "軌斥", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
+    { type: ItemType.CAPTURE, name: "強奪", desc: "接近した敵からアイテム効果を奪い取る。" },
 ];
 
 const ItemIcon = ({ type }: { type: ItemType }) => {

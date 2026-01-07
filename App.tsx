@@ -185,7 +185,7 @@ function App() {
             </div>
 
             {/* Main Game Area */}
-            <div className="flex-1 relative min-h-0 w-full">
+            <div className="flex-1 relative z-50 min-h-0 w-full">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black opacity-80 z-0"></div>
                 <canvas ref={canvasRef} className="absolute inset-0 z-10 block" />
                 <div className="absolute inset-0 pointer-events-none z-20 shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]"></div>
@@ -194,7 +194,7 @@ function App() {
                 {gameState === GameState.PLAYING && (
                     <button 
                         onClick={handlePauseToggle}
-                        className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all duration-300 group"
+                        className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-sm transition-all duration-300 group"
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-white/70 group-hover:text-white transition-colors">
                             <rect x="6" y="4" width="4" height="16" rx="1" strokeWidth="2" />
