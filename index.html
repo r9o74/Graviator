@@ -7,10 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Fugaz+One&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Babel: .tsxファイルをブラウザで実行可能にするためのトランスパイラ -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS (ProductionではPostCSSでのビルドが推奨されますが、簡単のためCDNを維持します) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -23,104 +22,27 @@
             color: white;
         }
         
-        #error-display {
-            position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 600px;
-            background: rgba(220, 38, 38, 0.95);
-            backdrop-filter: blur(10px);
-            color: white;
-            padding: 15px;
-            font-family: monospace;
-            z-index: 99999;
-            display: none;
-            box-sizing: border-box;
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        #error-close {
-            position: absolute;
-            right: 10px;
-            top: 10px;
-            background: white;
-            color: black;
-            border: none;
-            border-radius: 4px;
-            padding: 2px 8px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 12px;
-        }
-        
+        /* エラー表示スタイルは不要になるため簡略化 */
         ::-webkit-scrollbar { display: none; }
         .neon-text-shadow { text-shadow: 0 0 10px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3); }
         .font-fugaz { font-family: 'Fugaz One', cursive; }
         .font-comfortaa { font-family: 'Comfortaa', sans-serif; }
     </style>
-
-    <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
-
-    <script>
-        // エラー発生時の処理
-        window.onerror = function(msg, url, lineNo, columnNo, error) {
-            // 外部スクリプトや拡張機能による「Script error.」は詳細が取れないため無視する
-            if (msg === "Script error." && (!url || url === "")) {
-                console.warn("Ignored cross-origin or extension script error.");
-                return false;
-            }
-
-            const display = document.getElementById('error-display');
-            const content = document.getElementById('error-content');
-            if (display && content) {
-                display.style.display = 'block';
-                content.innerHTML += `<div style="margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.1)">
-                    <strong>[Error]</strong> ${msg}<br/>
-                    <small style="opacity:0.7">at ${url || 'unknown'}:${lineNo}:${columnNo}</small>
-                </div>`;
-            }
-            return false;
-        };
-
-        window.onunhandledrejection = function(event) {
-            const display = document.getElementById('error-display');
-            const content = document.getElementById('error-content');
-            if (display && content) {
-                display.style.display = 'block';
-                content.innerHTML += `<div>[Unhandled Rejection] ${event.reason}</div><hr/>`;
-            }
-        };
-
-        function closeError() {
-            document.getElementById('error-display').style.display = 'none';
-        }
-    </script>
 </head>
 <body>
     <div id="root"></div>
-    <div id="error-display">
-        <button id="error-close" onclick="closeError()">CLOSE</button>
-        <div id="error-content" style="max-height: 200px; overflow-y: auto; font-size: 12px; line-height: 1.4;"></div>
-    </div>
-
-    <script 
-        type="text/babel" 
-        data-type="module" 
-        data-presets="typescript,react" 
-        src="index.tsx">
-    </script>
+    <!-- Vite Entry Point -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
