@@ -487,16 +487,16 @@ class Entity {
             if (isPowered) label_dist += 4;
             if (isInverted) label_dist += 4;
             if (this.repulsiveTrailTimer > 0) label_dist += 4;
-            if (this.isStealthActive()) label += 4;
+            if (this.isStealthActive()) label_dist += 4;
             
             const labelY = this.pos.y - (label_dist / scaleFactor);
             ctx.fillText(label, this.pos.x, labelY);
 
             // インジケーターバー描画
-            const barWidth = 24 / scaleFactor;
+            const barWidth = 32 / scaleFactor;
             const barHeight = 3 / scaleFactor;
             const spacing = 2 / scaleFactor;
-            let currentBarY = labelY + (4 / scaleFactor); // ラベルの少し下
+            let currentBarY = labelY + (3 / scaleFactor); // ラベルの少し下
 
             const effects = [];
             if (this.powerupTimer > 0) effects.push({ ratio: this.powerupTimer / POWERUP_DURATION, color: COLOR_ITEM_MASS });
