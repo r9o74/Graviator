@@ -21,7 +21,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
     const gravityPercent = Math.min((gravity / Math.max(5000, maxGravity)) * 100, 100);
 
     return (
-        <div className="w-full h-auto bg-transparent flex flex-col p-1 landscape:p-2 gap-1 landscape:gap-1.5 overflow-visible select-none">
+        <div className="w-full h-auto bg-transparent flex flex-col p-1 landscape:p-2 gap-1 landscape:gap-1.5 overflow-visible select-none relative">
             <style>{`
                 .liquid-card {
                     background: rgba(255, 255, 255, 0.03);
@@ -36,11 +36,11 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
             `}</style>
 
             {/* Header - Hidden in portrait to save space */}
-            <div className="hidden landscape:flex shrink-0 items-center justify-between px-1">
+            <div className="hidden landscape:flex shrink-0 items-center justify-between px-1 mr-2">
                 <div className="text-[10px] text-cyan-500/80 font-bold tracking-[0.3em] uppercase">System Telemetry</div>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 landscape:gap-1 landscape:flex landscape:flex-col landscape:gap-1">
+            <div className="grid grid-cols-2 gap-1 landscape:gap-1 landscape:flex landscape:flex-col landscape:gap-1 landscape:mr-2">
                 
                 {/* Speed Card */}
                 <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">

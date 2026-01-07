@@ -6,10 +6,11 @@ interface MenuOverlayProps {
     gameState: GameState;
     onStart: (mode: GameMode) => void;
     onHome: () => void;
+    onResume: () => void;
     gameStats: GameStats | null;
 }
 
-const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, gameStats }) => {
+const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, onResume, gameStats }) => {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
     const audio = AudioManager.getInstance();
 
@@ -28,6 +29,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, g
 
     const isGameOver = gameState === GameState.GAME_OVER;
     const isVictory = gameState === GameState.VICTORY;
+    const isPaused = gameState === GameState.PAUSED;
     const isMenu = gameState === GameState.MENU;
     const currentMode = gameStats?.mode || GameMode.SURVIVAL;
 
@@ -46,6 +48,11 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, g
         subtitle = "YOU ARE THE LAST SURVIVOR!";
         colorClass = "text-emerald-400";
         blobColor = "bg-emerald-500";
+    } else if (isPaused) {
+        title = "PAUSED";
+        subtitle = "AWAITING INPUT";
+        colorClass = "text-amber-400";
+        blobColor = "bg-amber-500";
     }
 
     const wrapperClasses = isMenu ? "bg-[#050505] z-[100]" : "bg-black/20 backdrop-blur-sm z-50";
@@ -61,6 +68,12 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, g
         await audio.resume();
         audio.playUiClick();
         onHome();
+    };
+
+    const handleResumeClick = async () => {
+        await audio.resume();
+        audio.playUiClick();
+        onResume();
     };
 
     const handleHover = () => {
@@ -128,14 +141,26 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, g
                 )}
 
                 <div className="flex flex-col gap-3">
-                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(GameMode.SURVIVAL)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
-                        <span className='relative z-10'>SURVIVAL</span>
-                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
-                    </button>
-                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(GameMode.ENDLESS)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
-                        <span className='relative z-10'>ENDLESS</span>
-                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
-                    </button>
+                    {isPaused && (
+                         <button onMouseEnter={handleHover} onClick={handleResumeClick} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                            <span className='relative z-10'>RESUME</span>
+                            <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                        </button>
+                    )}
+                    
+                    {!isPaused && (
+                        <>
+                            <button onMouseEnter={handleHover} onClick={() => handleButtonClick(GameMode.SURVIVAL)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                                <span className='relative z-10'>SURVIVAL</span>
+                                <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                            </button>
+                            <button onMouseEnter={handleHover} onClick={() => handleButtonClick(GameMode.ENDLESS)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                                <span className='relative z-10'>ENDLESS</span>
+                                <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                            </button>
+                        </>
+                    )}
+                    
                     {!isMenu && (
                         <button onMouseEnter={handleHover} onClick={handleHomeClick} className={`group relative py-3 px-10 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-sm md:text-md tracking-[0.4em] transition-all duration-500 rounded-[20px] w-full overflow-hidden`}>
                             <span className='relative z-10'>HOME</span>

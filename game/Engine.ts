@@ -45,7 +45,7 @@ const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
 const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
 const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
 const ITEM_SPAWN_INTERVAL_MIN = 3.0;
-const ITEM_SPAWN_INTERVAL_MAX = 6.0;
+const ITEM_SPAWN_INTERVAL_MAX = 3.0;
 
 
 // 質量増加：衛星：透明化：重力波：反転：軌斥
@@ -77,7 +77,7 @@ const WAVE_INTERVAL = 1.0;
 const WAVE_MAX_RADIUS = 700.0; // 射程
 
 // 反転
-const INVERSION_DURATION = 8.0;
+const INVERSION_DURATION = 7.0;
 const INVERSION_MULTIPLE_1 = 5.0; // 自分 -> 敵
 const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分
 
@@ -431,15 +431,38 @@ class Entity {
         }
 
         if (this.stealthOpacity > 0) {
+            const auraPulse = (Math.sin(Date.now() / 100) + 1) / 2;
+
             if (isPowered || this.isSatellite || isInverted) {
-                const auraPulse = (Math.sin(Date.now() / 100) + 1) / 2;
                 ctx.shadowBlur = ((this.isSatellite ? 10 : 30) + auraPulse * 20) * blurFactor;
                 ctx.shadowColor = isInverted ? COLOR_ITEM_INVERSION : this.color;
-                if (isPowered || isInverted) {
+                
+                if (isPowered && isInverted) {
+                    // 同時使用時の2重リング描画
+                    ctx.lineWidth = 2.5 / scaleFactor;
+                    
+                    // 内側：反転（Repulse）＝ 緑
+                    ctx.strokeStyle = COLOR_ITEM_INVERSION; 
+                    ctx.beginPath(); 
+                    ctx.arc(this.pos.x, this.pos.y, this.radius * (1.4 + auraPulse * 0.20), 0, Math.PI * 2); 
+                    ctx.stroke();
+
+                    // 外側：質量増加（Heavy）＝ プレイヤーカラー (this.color)
+                    ctx.strokeStyle = this.color; 
+                    ctx.beginPath(); 
+                    ctx.arc(this.pos.x, this.pos.y, this.radius * (2.0 + auraPulse * 0.30), 0, Math.PI * 2); 
+                    ctx.stroke();
+                } 
+                else if (isPowered || isInverted) {
+                    // 単独使用時のリング描画
                     ctx.strokeStyle = isInverted ? COLOR_ITEM_INVERSION : this.color;
-                    ctx.lineWidth = 4 / scaleFactor; ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, this.radius * (1.5 + auraPulse * 0.3), 0, Math.PI * 2); ctx.stroke();
+                    ctx.lineWidth = 4 / scaleFactor; 
+                    ctx.beginPath(); 
+                    ctx.arc(this.pos.x, this.pos.y, this.radius * (1.5 + auraPulse * 0.3), 0, Math.PI * 2); 
+                    ctx.stroke();
                 }
             }
+
             ctx.shadowBlur = (isPowered ? 40 : (this.isSatellite ? 15 : 30)) * blurFactor;
             ctx.shadowColor = this.color; ctx.fillStyle = this.color;
             ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, isPowered ? this.radius * 1.2 : this.radius, 0, Math.PI * 2); ctx.fill();
@@ -454,12 +477,44 @@ class Entity {
             ctx.save();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             const fontSize = Math.round(LABEL_PHYSICAL_FONT_SIZE / scaleFactor);
-            ctx.font = `${fontSize}px JetBrains Mono`; ctx.textAlign = 'center';
+            ctx.font = `${fontSize * 0.9}px JetBrains Mono`; ctx.textAlign = 'center';
             let label = this.isPlayer ? "YOU" : "ENEMY";
             if (isPowered) label = "HEAVY";
             if (isInverted) label = "REPULS";
             if (this.repulsiveTrailTimer > 0) label = "TRAIL";
-            ctx.fillText(label, this.pos.x, this.pos.y - (20 / scaleFactor));
+
+            let label_dist = 20;
+            if (isPowered) label_dist += 4;
+            if (isInverted) label_dist += 4;
+            if (this.repulsiveTrailTimer > 0) label_dist += 4;
+            if (this.isStealthActive()) label += 4;
+            
+            const labelY = this.pos.y - (label_dist / scaleFactor);
+            ctx.fillText(label, this.pos.x, labelY);
+
+            // インジケーターバー描画
+            const barWidth = 24 / scaleFactor;
+            const barHeight = 3 / scaleFactor;
+            const spacing = 2 / scaleFactor;
+            let currentBarY = labelY + (4 / scaleFactor); // ラベルの少し下
+
+            const effects = [];
+            if (this.powerupTimer > 0) effects.push({ ratio: this.powerupTimer / POWERUP_DURATION, color: COLOR_ITEM_MASS });
+            if (this.stealthTimer > 0) effects.push({ ratio: this.stealthTimer / STEALTH_TOTAL_DURATION, color: COLOR_ITEM_STEALTH });
+            if (this.inversionTimer > 0) effects.push({ ratio: this.inversionTimer / INVERSION_DURATION, color: COLOR_ITEM_INVERSION });
+            if (this.repulsiveTrailTimer > 0) effects.push({ ratio: this.repulsiveTrailTimer / REPULSIVE_TRAIL_DURATION, color: COLOR_ITEM_REPULSIVE });
+
+            for (const effect of effects) {
+                // 背景
+                ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
+                ctx.fillRect(this.pos.x - barWidth / 2, currentBarY, barWidth, barHeight);
+                // バー
+                ctx.fillStyle = effect.color;
+                ctx.fillRect(this.pos.x - barWidth / 2, currentBarY, barWidth * effect.ratio, barHeight);
+                
+                currentBarY += barHeight + spacing;
+            }
+
             ctx.restore();
         }
     }
@@ -531,6 +586,12 @@ export class GameEngine {
 
     setGameState(state: GameState) {
         const prevState = this.gameState; this.gameState = state; this.onStateChange(state);
+        
+        // 再開時に前回のタイムスタンプを使用すると巨大なdtが発生するため、現在時刻にリセットする
+        if (state === GameState.PLAYING && prevState === GameState.PAUSED) {
+            this.lastTime = performance.now();
+        }
+
         if (state === GameState.GAME_OVER && prevState === GameState.PLAYING) {
             this.audio.playGameOver(); this.audio.setThrust(0);
             this.shakeIntensity = 40; this.shakeDecay = 0.92; this.flashOpacity = 0.8; this.flashColor = '#FF0000';
@@ -538,6 +599,14 @@ export class GameEngine {
             this.audio.playVictory(); this.audio.setThrust(0);
             this.shakeIntensity = 20; this.shakeDecay = 0.96; this.flashOpacity = 0.5; this.flashColor = '#00FFFF';
             this.triggerVictoryBurst();
+        }
+    }
+    
+    togglePause() {
+        if (this.gameState === GameState.PLAYING) {
+            this.setGameState(GameState.PAUSED);
+        } else if (this.gameState === GameState.PAUSED) {
+            this.setGameState(GameState.PLAYING);
         }
     }
 
@@ -648,6 +717,13 @@ export class GameEngine {
             this.gravityWaves[i].update(dt, this.entities);
             if (this.gravityWaves[i].life <= 0) this.gravityWaves.splice(i, 1);
         }
+        
+        // PAUSE時は物理演算スキップ
+        if (this.gameState === GameState.PAUSED) {
+            this.audio.setThrust(0);
+            return;
+        }
+        
         if (this.gameState !== GameState.PLAYING) return;
         this.itemSpawnTimer -= dt;
         if (this.itemSpawnTimer <= 0) {
