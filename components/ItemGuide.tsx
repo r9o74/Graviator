@@ -51,7 +51,7 @@ export const ItemGuide: React.FC<ItemGuideProps> = ({ onClose }) => {
     return (
         <div className="w-full h-full flex flex-col relative z-20">
             <div className="flex items-center justify-between mb-4 shrink-0">
-                <h2 className="text-2xl font-fugaz text-cyan-400 tracking-wider">ITEM DATA</h2>
+                <h2 className="text-2xl font-fugaz text-cyan-400">ITEM DATA</h2>
                 <button 
                     onClick={onClose}
                     className="p-2 text-white/50 hover:text-white transition-colors"

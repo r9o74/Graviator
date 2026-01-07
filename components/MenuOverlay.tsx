@@ -153,7 +153,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                         <div className="flex flex-col gap-3">
                             {isPaused && (
                                 <button onMouseEnter={handleHover} onClick={() => handleButtonClick(onResume)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
-                                    <span className='relative z-10 tracking-tighter'>RESUME</span>
+                                    <span className='relative z-10'>RESUME</span>
                                     <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                 </button>
                             )}
@@ -161,11 +161,11 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                             {!isPaused && (
                                 <>
                                     <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.SURVIVAL))} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
-                                        <span className='relative z-10 tracking-tighter'>SURVIVAL</span>
+                                        <span className='relative z-10'>SURVIVAL</span>
                                         <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                     </button>
                                     <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.ENDLESS))} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
-                                        <span className='relative z-10 tracking-tighter'>ENDLESS</span>
+                                        <span className='relative z-10'>ENDLESS</span>
                                         <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                     </button>
                                 </>

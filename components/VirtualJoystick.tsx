@@ -124,10 +124,10 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             {/* Simple Idle Guide */}
             <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 pointer-events-none ${active ? 'opacity-0' : 'opacity-100'}`}>
                  <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-full border border-white/5 flex items-center justify-center animate-pulse">
-                        <div className="w-1 h-1 bg-cyan-400/30 rounded-full"></div>
+                    <div className="w-12 h-12 rounded-full border border-white/15 flex items-center justify-center animate-pulse">
+                        <div className="w-2 h-2 bg-cyan-400/50 rounded-full"></div>
                     </div>
-                    <span className="mt-2 text-[10px] text-cyan-500/40 font-mono tracking-widest uppercase">TOUCH</span>
+                    <span className="mt-2 text-[15px] text-cyan-500/60 font-mono tracking-widest uppercase">Swipe to Thrust!</span>
                  </div>
             </div>
 
