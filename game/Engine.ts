@@ -590,6 +590,12 @@ export class GameEngine {
     private itemSpawnTimer: number = ITEM_SPAWN_START_DELAY;
     private resizeHandler = () => this.resize();
 
+    // Tutorial state
+    tutorialStep: number = 0;
+    tutorialTimer: number = 0;
+    tutorialMessage: string = "";
+    tutorialObjectiveMet: boolean = false;
+
     constructor(canvas: HTMLCanvasElement, onStateChange: (state: GameState) => void, onStatsUpdate?: (stats: GameStats) => void) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
@@ -626,8 +632,6 @@ export class GameEngine {
         this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.frameCount = 0;
         this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
         
-        // プレイヤーと敵の出現位置を画面中央寄りの安全圏に設定 (UI表示後の画面縮小対策)
-        // 論理画面サイズの15%のマージンを確保する
         const safeMarginX = this.logicalWidth * 0.15;
         const safeMarginY = this.logicalHeight * 0.15;
 
@@ -637,22 +641,27 @@ export class GameEngine {
         // プレイヤー出現予告 (1.0秒後に出現)
         this.spawnWarnings.push({ x: playerX, y: playerY, timer: 1.0, isPlayer: true });
         
-        this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
-        const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
-        
-        for (let i = 0; i < this.initialEnemyCount; i++) {
-            let x = 0, y = 0, attempts = 0, validPosition = false;
-            while (!validPosition && attempts < 20) {
-                // 安全マージン内でのランダム配置
-                x = Math.random() * (this.logicalWidth - safeMarginX * 2) + safeMarginX;
-                y = Math.random() * (this.logicalHeight - safeMarginY * 2) + safeMarginY;
-                
-                const distSq = Math.pow(x - playerX, 2) + Math.pow(y - playerY, 2);
-                if (distSq >= SAFE_DISTANCE_SQ) validPosition = true;
-                attempts++;
+        if (mode === GameMode.TUTORIAL) {
+            this.tutorialStep = 0;
+            this.tutorialTimer = 0;
+            this.tutorialObjectiveMet = false;
+            this.tutorialMessage = "初期化中...";
+        } else {
+            this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
+            const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
+            
+            for (let i = 0; i < this.initialEnemyCount; i++) {
+                let x = 0, y = 0, attempts = 0, validPosition = false;
+                while (!validPosition && attempts < 20) {
+                    x = Math.random() * (this.logicalWidth - safeMarginX * 2) + safeMarginX;
+                    y = Math.random() * (this.logicalHeight - safeMarginY * 2) + safeMarginY;
+                    
+                    const distSq = Math.pow(x - playerX, 2) + Math.pow(y - playerY, 2);
+                    if (distSq >= SAFE_DISTANCE_SQ) validPosition = true;
+                    attempts++;
+                }
+                this.spawnWarnings.push({ x, y, timer: 1.0, isPlayer: false });
             }
-            // 敵出現予告 (1.0秒後に出現)
-            this.spawnWarnings.push({ x, y, timer: 1.0, isPlayer: false });
         }
         
         this.setGameState(GameState.PLAYING); this.lastTime = performance.now();
@@ -762,6 +771,16 @@ export class GameEngine {
         } else if (cpu.pos.y < WALL_MARGIN || cpu.pos.y > this.logicalHeight - WALL_MARGIN) {
             cpu.breakingValue = (WALL_MARGIN - Math.min(cpu.pos.y, this.logicalHeight - cpu.pos.y)) / BREAK_BOOST;
         } else cpu.breakingValue = 0;
+        
+        // チュートリアル用の敵は動かない
+        if (this.gameMode === GameMode.TUTORIAL) {
+             // 最小限の壁回避のみ行う
+             if (avoidanceForce.length() > 0) {
+                 cpu.applyForce(avoidanceForce.normalize().scale(500));
+             }
+             return;
+        }
+
         if (thrustDirection.length() > 0) {
             let fx = thrustDirection.x * CPU_THRUST_FORCE * cpu.thrustMultiplier; 
             let fy = thrustDirection.y * CPU_THRUST_FORCE * cpu.thrustMultiplier;
@@ -786,6 +805,77 @@ export class GameEngine {
                 const tx = dx / len; const ty = dy / len;
                 sat.applyForce(new Vector2(tx * SATELLITE_THRUST, ty * SATELLITE_THRUST));
                 if (Math.random() > 0.6) this.spawnExhaust(sat, new Vector2(tx, ty), 0.5);
+            }
+        }
+    }
+
+    updateTutorial(dt: number) {
+        const player = this.entities.find(e => e.isPlayer);
+        
+        // ステップ1: 移動操作の確認
+        if (this.tutorialStep === 0) {
+            this.tutorialMessage = "STEP 1/3: WASD,矢印キーまたはスワイプで移動";
+            if (player && player.vel.length() > 200) {
+                this.tutorialTimer += dt;
+                if (this.tutorialTimer > 1.0) {
+                    this.tutorialStep = 1;
+                    this.tutorialTimer = 0;
+                    this.audio.playUiClick(); // Step completion sound (using click for now)
+                    
+                    // 敵をスポーン
+                    const x = this.logicalWidth / 1.3;
+                    const y = this.logicalHeight * 0.35;
+                    this.spawnWarnings.push({ x, y, timer: 1.5, isPlayer: false });
+                }
+            } else {
+                this.tutorialTimer = 0;
+            }
+        }
+        // ステップ2: 敵の撃破
+        else if (this.tutorialStep === 1) {
+            this.tutorialMessage = "STEP 2/3: 敵に近づき重力で場外へ弾き出せ！";
+            const enemies = this.entities.filter(e => e.isCpu);
+            const warnings = this.spawnWarnings.filter(w => !w.isPlayer);
+            
+            if (enemies.length === 0 && warnings.length === 0 && this.tutorialTimer === 0) {
+                 // 敵が倒された
+                 this.tutorialTimer = 1.0; // Wait before next step
+            }
+            
+            if (this.tutorialTimer > 0) {
+                this.tutorialTimer -= dt;
+                if (this.tutorialTimer <= 0) {
+                    this.tutorialStep = 2;
+                    this.audio.playUiClick();
+                    
+                    // アイテムと敵をスポーン
+                    const cx = this.logicalWidth / 1.3;
+                    const cy = this.logicalHeight / 2;
+                    this.items.push(new Item(this.logicalWidth / 4, this.logicalHeight / 2, ItemType.MASS_BOOST));
+                    this.spawnWarnings.push({ x: cx * 1.1, y: cy, timer: 2.0, isPlayer: false });
+                }
+            }
+        }
+        // ステップ3: アイテムの使用
+        else if (this.tutorialStep === 2) {
+            this.tutorialMessage = "STEP 3/3: 黄色のアイテムを取り、強化重力で敵を倒せ！";
+            const hasPowerUp = player && player.massMultiplier > 1.0;
+            const enemies = this.entities.filter(e => e.isCpu);
+            const warnings = this.spawnWarnings.filter(w => !w.isPlayer);
+
+            if (enemies.length === 0 && warnings.length === 0) {
+                // 敵を倒した（アイテムを取ったかどうかは問わずクリア扱いにするが、文脈的には取ってほしい）
+                this.tutorialStep = 3;
+                this.tutorialTimer = 2.0; // Victory delay
+                this.audio.playVictory();
+            }
+        }
+        // 完了
+        else if (this.tutorialStep === 3) {
+            this.tutorialMessage = "TUTORIAL COMPLETE!";
+            this.tutorialTimer -= dt;
+            if (this.tutorialTimer <= 0) {
+                this.setGameState(GameState.VICTORY);
             }
         }
     }
@@ -828,8 +918,14 @@ export class GameEngine {
         }
         
         if (this.gameState !== GameState.PLAYING) return;
+        
+        // チュートリアルの進行管理
+        if (this.gameMode === GameMode.TUTORIAL) {
+            this.updateTutorial(dt);
+        }
+
         this.itemSpawnTimer -= dt;
-        if (this.itemSpawnTimer <= 0) {
+        if (this.gameMode !== GameMode.TUTORIAL && this.itemSpawnTimer <= 0) {
             const x = Math.random() * (this.logicalWidth - 100) + 50; const y = Math.random() * (this.logicalHeight - 100) + 50;
             const r = Math.random();
             let type = ItemType.MASS_BOOST;
@@ -1125,8 +1221,17 @@ export class GameEngine {
             const e = this.entities[i];
             if (e.pos.x < 0 || e.pos.x > this.logicalWidth || e.pos.y < 0 || e.pos.y > this.logicalHeight) {
                 this.triggerEliminationEffect(e);
-                if (e.isPlayer) this.setGameState(GameState.GAME_OVER);
-                else { if (!e.isSatellite) this.killCount++; if (this.gameMode === GameMode.ENDLESS && !e.isSatellite) this.requestSpawnEnemy(); }
+                if (e.isPlayer) {
+                    if (this.gameMode === GameMode.TUTORIAL) {
+                        // チュートリアル中のリスポーン
+                        this.spawnWarnings.push({ x: this.logicalWidth / 2, y: this.logicalHeight / 2, timer: 1.0, isPlayer: true });
+                    } else {
+                        this.setGameState(GameState.GAME_OVER);
+                    }
+                } else { 
+                    if (!e.isSatellite) this.killCount++; 
+                    if (this.gameMode === GameMode.ENDLESS && !e.isSatellite) this.requestSpawnEnemy(); 
+                }
                 this.entities.splice(i, 1);
             }
         }
@@ -1138,7 +1243,19 @@ export class GameEngine {
         if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING && this.spawnWarnings.length === 0) this.setGameState(GameState.VICTORY);
         this.frameCount++;
         if (this.onStatsUpdate && player && this.frameCount % 5 === 0) {
-             this.onStatsUpdate({ mode: this.gameMode, speed: player.vel.length(), gravityForce: playerTotalGravityForce, maxSpeed: this.maxSpeedRecorded, maxGravity: this.maxGravityRecorded, currentEnemies: enemiesLeft, initialEnemies: this.initialEnemyCount, timeSurvived: (Date.now() - this.startTime) / 1000, dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100), kills: this.killCount });
+             this.onStatsUpdate({ 
+                 mode: this.gameMode, 
+                 speed: player.vel.length(), 
+                 gravityForce: playerTotalGravityForce, 
+                 maxSpeed: this.maxSpeedRecorded, 
+                 maxGravity: this.maxGravityRecorded, 
+                 currentEnemies: enemiesLeft, 
+                 initialEnemies: this.initialEnemyCount, 
+                 timeSurvived: (Date.now() - this.startTime) / 1000, 
+                 dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100), 
+                 kills: this.killCount,
+                 tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined
+             });
         }
     }
 

@@ -218,6 +218,17 @@ function App() {
                     </button>
                 )}
 
+                {/* Tutorial Message Overlay */}
+                {gameState === GameState.PLAYING && currentMode === GameMode.TUTORIAL && gameStats?.tutorialMessage && (
+                    <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-40 w-full px-4 text-center pointer-events-none">
+                        <div className="inline-block bg-black/10 backdrop-blur-sm border border-cyan-500/30 px-6 py-2 rounded-2xl shadow-[0_0_30px_rgba(6,182,212,0.2)]">
+                            <h2 className="text-cyan-400 font-fugaz text-md md:text-xl tracking-wider">
+                                {gameStats.tutorialMessage}
+                            </h2>
+                        </div>
+                    </div>
+                )}
+
                 <MenuOverlay 
                     gameState={gameState} 
                     onStart={handleStartGame} 

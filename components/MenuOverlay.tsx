@@ -108,13 +108,13 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                 .liquid-glass { background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(50px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.7); position: relative; overflow: hidden; }
             `}</style>
 
-            <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center shadow-xl pointer-events-auto max-w-md w-[90%] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'} ${showItemGuide ? 'h-[85vh] flex flex-col' : ''}`}>
+            <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center items-center shadow-xl pointer-events-auto max-w-xl w-[95%] max-h-[90vh] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'} ${showItemGuide ? 'h-[85vh] flex flex-col' : ''}`}>
                 
                 {showItemGuide ? (
                     <ItemGuide onClose={() => { audio.playUiClick(); setShowItemGuide(false); }} />
                 ) : (
                     <>
-                        <div className="mb-3 relative z-10">
+                        <div className="mb-2 relative z-10">
                             <h1 className={`
                                 text-5xl 
                                 md:text-6xl 
@@ -137,8 +137,8 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                         </div>
 
                         {isMenu && (
-                            <div className="mb-5 text-left bg-white/[0.02] p-4 rounded-3xl border border-white/5 backdrop-blur-xl relative z-10">
-                                <div className="flex items-center mb-3">
+                            <div className="mb-3 text-left bg-white/[0.02] p-3 rounded-3xl border border-white/5 backdrop-blur-xl relative z-10">
+                                <div className="flex items-center mb-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-700 mr-3 animate-ping"></span>
                                     <span className="text-[15px] text-cyan-500 font-fugaz tracking-[0.2em] uppercase tracking-tighter">MISSION</span>
                                 </div>
@@ -150,7 +150,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                             </div>
                         )}
 
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
                             {isPaused && (
                                 <button onMouseEnter={handleHover} onClick={() => handleButtonClick(onResume)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
                                     <span className='relative z-10'>RESUME</span>
@@ -160,23 +160,29 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                             
                             {!isPaused && (
                                 <>
-                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.SURVIVAL))} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.SURVIVAL))} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border-2 border-white/30 hover:border-white/60 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
                                         <span className='relative z-10'>SURVIVAL</span>
                                         <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                     </button>
-                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.ENDLESS))} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
+                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.ENDLESS))} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border-2 border-white/30 hover:border-white/60 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
                                         <span className='relative z-10'>ENDLESS</span>
                                         <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                     </button>
                                 </>
                             )}
                             
-                            {/* Item Guide Button */}
+                            {/* Sub Buttons: Tutorial & Guide */}
                             {isMenu && (
-                                <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => setShowItemGuide(true))} className={`group relative py-3 px-10 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-sm md:text-md tracking-[0.4em] transition-all duration-500 rounded-[20px] w-full overflow-hidden`}>
-                                    <span className='relative z-10 tracking-wider'>ITEM GUIDE</span>
-                                    <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                </button>
+                                <div className="flex gap-2 w-full">
+                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.TUTORIAL))} className={`flex-1 group relative py-3 px-2 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-xs md:text-sm tracking-[0.2em] transition-all duration-500 rounded-[20px] overflow-hidden`}>
+                                        <span className='relative z-10 font-black tracking-tight'>チュートリアル</span>
+                                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                    </button>
+                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => setShowItemGuide(true))} className={`flex-1 group relative py-3 px-2 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-xs md:text-sm tracking-[0.2em] transition-all duration-500 rounded-[20px] overflow-hidden`}>
+                                        <span className='relative z-10 font-black tracking-tight'>アイテム一覧</span>
+                                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                    </button>
+                                </div>
                             )}
 
                             {!isMenu && (

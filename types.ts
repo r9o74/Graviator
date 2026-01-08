@@ -8,7 +8,8 @@ export enum GameState {
 
 export enum GameMode {
     SURVIVAL = 'SURVIVAL',
-    ENDLESS = 'ENDLESS'
+    ENDLESS = 'ENDLESS',
+    TUTORIAL = 'TUTORIAL'
 }
 
 export interface InputState {
@@ -37,4 +38,5 @@ export interface GameStats {
     timeSurvived: number;
     dangerLevel: number; // 0-100% based on proximity to walls/enemies
     kills: number;
+    tutorialMessage?: string; // チュートリアル用の指示テキスト
 }
