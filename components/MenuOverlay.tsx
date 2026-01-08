@@ -108,7 +108,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                 .liquid-glass { background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(50px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.7); position: relative; overflow: hidden; }
             `}</style>
 
-            <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center shadow-xl pointer-events-auto max-w-md w-[90%] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'} ${showItemGuide ? 'h-[600px] flex flex-col' : ''}`}>
+            <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center shadow-xl pointer-events-auto max-w-md w-[90%] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'} ${showItemGuide ? 'h-[85vh] flex flex-col' : ''}`}>
                 
                 {showItemGuide ? (
                     <ItemGuide onClose={() => { audio.playUiClick(); setShowItemGuide(false); }} />
@@ -119,7 +119,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                                 text-5xl 
                                 md:text-6xl 
                                 font-black 
-                                tracking-tighter 
+                                tracking-tight 
                                 ${colorClass}  
                                 font-fugaz 
                                 transition-colors 
@@ -174,14 +174,14 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({ gameState, onStart, onHome, o
                             {/* Item Guide Button */}
                             {isMenu && (
                                 <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => setShowItemGuide(true))} className={`group relative py-3 px-10 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-sm md:text-md tracking-[0.4em] transition-all duration-500 rounded-[20px] w-full overflow-hidden`}>
-                                    <span className='relative z-10 tracking-tighter'>ITEM GUIDE</span>
+                                    <span className='relative z-10 tracking-wider'>ITEM GUIDE</span>
                                     <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                                 </button>
                             )}
 
                             {!isMenu && (
                                 <button onMouseEnter={handleHover} onClick={() => handleButtonClick(onHome)} className={`group relative py-3 px-10 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-sm md:text-md tracking-[0.4em] transition-all duration-500 rounded-[20px] w-full overflow-hidden`}>
-                                    <span className='relative z-10 tracking-tighter'>HOME</span>
+                                    <span className='relative z-10 tracking-wider'>HOME</span>
                                     <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                                 </button>
                             )}

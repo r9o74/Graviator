@@ -106,7 +106,7 @@ export enum ItemType {
 }
 
 interface Point { x: number; y: number; isRepulsive?: boolean; }
-interface SpawnWarning { x: number; y: number; timer: number; }
+interface SpawnWarning { x: number; y: number; timer: number; isPlayer?: boolean; }
 
 class GravityWave {
     origin: Vector2;
@@ -548,7 +548,7 @@ class Entity {
             ctx.fillText(label, this.pos.x, labelY);
 
             // インジケーターバー描画
-            const barWidth = 32 / scaleFactor;
+            const barWidth = 40 / scaleFactor;
             const barHeight = 3 / scaleFactor;
             const spacing = 2 / scaleFactor;
             let currentBarY = labelY + (3 / scaleFactor); // ラベルの少し下
@@ -618,25 +618,43 @@ export class GameEngine {
     async start(mode: GameMode = GameMode.SURVIVAL) {
         await this.audio.resume(); this.audio.playStart(); this.resize(); this.gameMode = mode;
         this.entities = []; this.particles = []; this.spawnWarnings = []; this.items = []; this.gravityWaves = [];
-        this.shakeIntensity = 0; this.flashOpacity = 0; this.startTime = Date.now();
+        this.shakeIntensity = 0; this.flashOpacity = 0; 
+        
+        // 1秒遅延して開始するための調整
+        this.startTime = Date.now() + 1000; 
+        
         this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.frameCount = 0;
-        this.itemSpawnTimer = ITEM_SPAWN_START_DELAY;
-        const playerX = this.logicalWidth / 2; const playerY = this.logicalHeight / 2;
-        this.entities.push(new Entity(playerX, playerY, true));
+        this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
+        
+        // プレイヤーと敵の出現位置を画面中央寄りの安全圏に設定 (UI表示後の画面縮小対策)
+        // 論理画面サイズの15%のマージンを確保する
+        const safeMarginX = this.logicalWidth * 0.15;
+        const safeMarginY = this.logicalHeight * 0.15;
+
+        const playerX = this.logicalWidth / 2; 
+        const playerY = this.logicalHeight / 2;
+        
+        // プレイヤー出現予告 (1.0秒後に出現)
+        this.spawnWarnings.push({ x: playerX, y: playerY, timer: 1.0, isPlayer: true });
+        
         this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
         const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
-        const SPAWN_PADDING = 50; // 安全マージン
+        
         for (let i = 0; i < this.initialEnemyCount; i++) {
             let x = 0, y = 0, attempts = 0, validPosition = false;
             while (!validPosition && attempts < 20) {
-                x = Math.random() * (this.logicalWidth - SPAWN_PADDING * 2) + SPAWN_PADDING;
-                y = Math.random() * (this.logicalHeight - SPAWN_PADDING * 2) + SPAWN_PADDING;
+                // 安全マージン内でのランダム配置
+                x = Math.random() * (this.logicalWidth - safeMarginX * 2) + safeMarginX;
+                y = Math.random() * (this.logicalHeight - safeMarginY * 2) + safeMarginY;
+                
                 const distSq = Math.pow(x - playerX, 2) + Math.pow(y - playerY, 2);
                 if (distSq >= SAFE_DISTANCE_SQ) validPosition = true;
                 attempts++;
             }
-            this.entities.push(new Entity(x, y, false));
+            // 敵出現予告 (1.0秒後に出現)
+            this.spawnWarnings.push({ x, y, timer: 1.0, isPlayer: false });
         }
+        
         this.setGameState(GameState.PLAYING); this.lastTime = performance.now();
         if (!this.isLoopRunning) this.loop(this.lastTime);
     }
@@ -779,10 +797,24 @@ export class GameEngine {
             this.particles[i].update(dt);
             if (this.particles[i].life <= 0) { this.particles[i] = this.particles[this.particles.length - 1]; this.particles.pop(); }
         }
+        
+        // SpawnWarning処理
         for (let i = this.spawnWarnings.length - 1; i >= 0; i--) {
             this.spawnWarnings[i].timer -= dt;
-            if (this.spawnWarnings[i].timer <= 0) { const w = this.spawnWarnings[i]; this.entities.push(new Entity(w.x, w.y, false)); this.spawnWarnings.splice(i, 1); }
+            if (this.spawnWarnings[i].timer <= 0) { 
+                const w = this.spawnWarnings[i]; 
+                
+                // 出現確定時に座標をクランプして画面外即死を防ぐ
+                // この時点で resize() が完了しているため this.logicalWidth/Height は最新の値
+                const margin = 40; // 壁際過ぎると判定に引っかかる可能性があるためマージンを取る
+                const safeX = Math.max(margin, Math.min(w.x, this.logicalWidth - margin));
+                const safeY = Math.max(margin, Math.min(w.y, this.logicalHeight - margin));
+
+                this.entities.push(new Entity(safeX, safeY, !!w.isPlayer)); 
+                this.spawnWarnings.splice(i, 1); 
+            }
         }
+
         for (let i = this.items.length - 1; i >= 0; i--) this.items[i].update(dt);
         for (let i = this.gravityWaves.length - 1; i >= 0; i--) {
             this.gravityWaves[i].update(dt, this.entities);
@@ -1103,7 +1135,7 @@ export class GameEngine {
             if (playerTotalGravityForce > this.maxGravityRecorded) this.maxGravityRecorded = playerTotalGravityForce;
         }
         const enemiesLeft = this.entities.filter(e => e.isCpu).length;
-        if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING) this.setGameState(GameState.VICTORY);
+        if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING && this.spawnWarnings.length === 0) this.setGameState(GameState.VICTORY);
         this.frameCount++;
         if (this.onStatsUpdate && player && this.frameCount % 5 === 0) {
              this.onStatsUpdate({ mode: this.gameMode, speed: player.vel.length(), gravityForce: playerTotalGravityForce, maxSpeed: this.maxSpeedRecorded, maxGravity: this.maxGravityRecorded, currentEnemies: enemiesLeft, initialEnemies: this.initialEnemyCount, timeSurvived: (Date.now() - this.startTime) / 1000, dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100), kills: this.killCount });
@@ -1119,7 +1151,7 @@ export class GameEngine {
             if (player) { if (Math.pow(x - player.pos.x, 2) + Math.pow(y - player.pos.y, 2) > Math.pow(SAFE_DISTANCE * 2, 2)) valid = true; } else valid = true;
             attempts++;
         }
-        this.spawnWarnings.push({ x, y, timer: 2.0 });
+        this.spawnWarnings.push({ x, y, timer: 2.0, isPlayer: false });
     }
 
     draw() {
@@ -1140,9 +1172,26 @@ export class GameEngine {
     drawSpawnWarnings() {
         this.spawnWarnings.forEach(w => {
             const alpha = (Math.sin(Date.now() / 50) + 1) / 2 * 0.6;
-            this.ctx.strokeStyle = `rgba(255, 0, 0, ${alpha})`; this.ctx.lineWidth = 4 / this.scaleFactor; this.ctx.beginPath();
-            this.ctx.arc(w.x, w.y, PLAYER_RADIUS * 3 * (w.timer / 2.0 + 0.5), 0, Math.PI * 2); this.ctx.stroke();
-            this.ctx.fillStyle = `rgba(255, 0, 0, ${alpha * 0.3})`; this.ctx.fill();
+            
+            let strokeColor = `rgba(255, 0, 0, ${alpha})`;
+            let fillColor = `rgba(255, 0, 0, ${alpha * 0.3})`;
+            
+            if (w.isPlayer) {
+                strokeColor = `rgba(0, 240, 255, ${alpha})`;
+                fillColor = `rgba(0, 240, 255, ${alpha * 0.3})`;
+            }
+
+            this.ctx.strokeStyle = strokeColor; 
+            this.ctx.lineWidth = 4 / this.scaleFactor; 
+            this.ctx.beginPath();
+            
+            // プレイヤーは1.0秒で出現、エンドレスの敵は2.0秒、初期配置の敵は1.0秒
+            const maxTime = w.isPlayer ? 1.0 : (this.frameCount < 60 ? 1.0 : 2.0); 
+            
+            this.ctx.arc(w.x, w.y, PLAYER_RADIUS * 3 * (w.timer / maxTime + 0.5), 0, Math.PI * 2); 
+            this.ctx.stroke();
+            this.ctx.fillStyle = fillColor; 
+            this.ctx.fill();
         });
     }
 

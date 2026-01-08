@@ -12,7 +12,6 @@ function App() {
     const [gameStats, setGameStats] = useState<GameStats | null>(null);
     
     // 現在選択されているモードをステートとRefの両方で管理
-    // StateはUI表示用、Refはイベントリスナー内での最新値参照用
     const [currentMode, setCurrentMode] = useState<GameMode>(GameMode.SURVIVAL);
     const currentModeRef = useRef<GameMode>(GameMode.SURVIVAL);
     
@@ -28,16 +27,36 @@ function App() {
         gameStateRef.current = gameState;
     }, [gameState]);
 
+    // メニュー状態かどうかの判定フラグ
+    const isMenu = gameState === GameState.MENU;
+
+    // UIの表示切り替えアニメーション完了後にエンジンをリサイズする
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (engineRef.current) {
+                engineRef.current.resize();
+            }
+        }, 550); // transition duration (500ms) + buffer
+        return () => clearTimeout(timer);
+    }, [gameState]);
+
     const handleStartGame = (mode: GameMode = GameMode.SURVIVAL) => {
+        // 1. まずUIの状態をPLAYINGに変更してアニメーション（サイドバーの格納など）を開始
+        setGameState(GameState.PLAYING);
         setCurrentMode(mode);
         currentModeRef.current = mode;
-        if (engineRef.current) {
-            engineRef.current.start(mode);
-        }
+
+        // 2. アニメーションが完了し、キャンバスサイズが確定するのを待ってからゲームロジックを開始
+        // これにより、start()内で計算されるスポーン位置が新しい画面サイズに基づいたものになる
+        setTimeout(() => {
+            if (engineRef.current) {
+                engineRef.current.resize();
+                engineRef.current.start(mode);
+            }
+        }, 600); // アニメーション時間(500ms) + マージン
     };
 
     const handleGoHome = () => {
-        // エンジンの状態も更新して同期を保つ
         if (engineRef.current) {
             engineRef.current.setGameState(GameState.MENU);
         } else {
@@ -57,7 +76,6 @@ function App() {
         }
     };
 
-    // Merge inputs and send to engine
     const updateEngineInput = () => {
         if (!engineRef.current) return;
         
@@ -83,7 +101,6 @@ function App() {
     useEffect(() => {
         if (!canvasRef.current) return;
 
-        // Initialize Engine once
         const engine = new GameEngine(
             canvasRef.current, 
             (state) => {
@@ -95,14 +112,12 @@ function App() {
         );
         engineRef.current = engine;
 
-        // Keyboard Input Handlers
         const handleKey = (e: KeyboardEvent, isDown: boolean) => {
             const key = e.key;
             if (key === 'ArrowUp' || key === 'w') keyboardInputRef.current.up = isDown;
             if (key === 'ArrowDown' || key === 's') keyboardInputRef.current.down = isDown;
             if (key === 'ArrowLeft' || key === 'a') keyboardInputRef.current.left = isDown;
             if (key === 'ArrowRight' || key === 'd') keyboardInputRef.current.right = isDown;
-            
             updateEngineInput();
         };
 
@@ -113,27 +128,22 @@ function App() {
             const key = e.key.toLowerCase();
             const code = e.code;
 
-            // プレイ中：スペースキーで一時停止
             if (current === GameState.PLAYING) {
                 if (code === 'Space') {
                     e.preventDefault(); 
                     if (engineRef.current) engineRef.current.togglePause();
                 }
             }
-            // 一時停止中
             else if (current === GameState.PAUSED) {
-                // スペースキーで再開
                 if (code === 'Space') {
                     e.preventDefault();
                     if (engineRef.current) engineRef.current.togglePause();
                 }
-                // バックスペースキーでホーム画面に戻る
                 else if (key === 'backspace') {
                      e.preventDefault(); 
                      if (engineRef.current) engineRef.current.setGameState(GameState.MENU);
                 }
             }
-            // メニューまたはリザルト画面
             else if (current === GameState.MENU || current === GameState.GAME_OVER || current === GameState.VICTORY) {
                 if (key === 's') {
                     handleStartGame(GameMode.SURVIVAL);
@@ -141,11 +151,10 @@ function App() {
                     handleStartGame(GameMode.ENDLESS);
                 } else if (code === 'Enter' || code === 'Space') {
                     e.preventDefault();
-                    if (engineRef.current) engineRef.current.start(currentModeRef.current);
+                    if (engineRef.current) handleStartGame(currentModeRef.current);
                 }
             }
 
-            // Escapeキーでのポーズ切り替え（既存機能維持）
             if (code === 'Escape') {
                 if (current === GameState.PLAYING || current === GameState.PAUSED) {
                     if (engineRef.current) engineRef.current.togglePause();
@@ -164,33 +173,39 @@ function App() {
             window.removeEventListener('keyup', onKeyUp);
             engine.stop();
         };
-    }, []); // 依存配列を空に。エンジンは一度だけ生成。
+    }, []);
 
     return (
         <div className="relative w-screen h-screen bg-black overflow-hidden select-none flex flex-col landscape:flex-row">
-            {/* Sidebar (Landscape) */}
-            <div className="hidden landscape:flex flex-col w-64 bg-[#080808] border-r border-white/10 shrink-0 relative z-30 shadow-[10px_0_30px_rgba(0,0,0,0.5)] h-full overflow-hidden">
+            {/* Sidebar (Landscape) - Transitions visible only when NOT in Menu */}
+            <div className={`
+                hidden landscape:flex flex-col bg-[#080808] border-r border-white/10 shrink-0 relative z-30 shadow-[10px_0_30px_rgba(0,0,0,0.5)] h-full overflow-hidden
+                transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)]
+                ${isMenu ? 'w-0 opacity-0 -translate-x-full border-none' : 'w-64 opacity-100 translate-x-0'}
+            `}>
                 <div className="w-full shrink-0">
                     <InfoPanel stats={gameStats} />
                 </div>
-                {/* The joystick takes all remaining vertical space */}
                 <div className="w-full flex-1 border-t border-white/5 bg-[#050505] relative z-40">
                      <VirtualJoystick onInput={handleJoystickInput} />
                 </div>
             </div>
 
-            {/* Top Bar (Portrait) */}
-            <div className="landscape:hidden w-full relative z-30">
+            {/* Top Bar (Portrait) - Transitions */}
+            <div className={`
+                landscape:hidden w-full relative z-30
+                transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
+                ${isMenu ? 'max-h-0 opacity-0 -translate-y-full' : 'max-h-[200px] opacity-100 translate-y-0'}
+            `}>
                 <InfoPanel stats={gameStats} />
             </div>
 
             {/* Main Game Area */}
-            <div className="flex-1 relative min-h-0 w-full">
+            <div className="flex-1 relative min-h-0 w-full transition-all duration-500">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black opacity-80 z-0"></div>
                 <canvas ref={canvasRef} className="absolute inset-0 z-10 block" />
                 <div className="absolute inset-0 pointer-events-none z-20 shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]"></div>
                 
-                {/* Pause Button (Visible only when playing) */}
                 {gameState === GameState.PLAYING && (
                     <button 
                         onClick={handlePauseToggle}
@@ -212,8 +227,12 @@ function App() {
                 />
             </div>
 
-            {/* Bottom Bar Joystick (Portrait) */}
-            <div className="landscape:hidden w-full h-48 bg-[#080808] border-t border-white/10 shrink-0 relative z-30 flex items-center justify-center pb-4">
+            {/* Bottom Bar Joystick (Portrait) - Transitions */}
+            <div className={`
+                landscape:hidden w-full bg-[#080808] border-t border-white/10 shrink-0 relative z-30 flex items-center justify-center
+                transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
+                ${isMenu ? 'h-0 opacity-0 translate-y-full border-none' : 'h-48 opacity-100 translate-y-0 pb-4'}
+            `}>
                  <VirtualJoystick onInput={handleJoystickInput} />
             </div>
         </div>
