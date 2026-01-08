@@ -39,4 +39,5 @@ export interface GameStats {
     dangerLevel: number; // 0-100% based on proximity to walls/enemies
     kills: number;
     tutorialMessage?: string; // チュートリアル用の指示テキスト
+    tutorial_step_show?: string; // チュートリアルのステップ表示 (e.g. "STEP 1/3")
 }

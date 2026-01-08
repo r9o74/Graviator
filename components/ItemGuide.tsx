@@ -67,8 +67,8 @@ export const ItemGuide: React.FC<ItemGuideProps> = ({ onClose }) => {
                             <ItemIcon type={info.type} />
                         </div>
                         <div className="flex-1 text-left">
-                            <h3 className="text-sm font-black font-fugaz text-white tracking-widest mb-1">{info.name}</h3>
-                            <p className="text-xs text-gray-400 font-comfortaa leading-relaxed">{info.desc}</p>
+                            <h3 className="text-md font-black font-fugaz text-white tracking-widest mb-1">{info.name}</h3>
+                            <p className="text-xs text-white-300/40 font-comfortaa leading-relaxed">{info.desc}</p>
                         </div>
                     </div>
                 ))}

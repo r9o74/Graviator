@@ -593,6 +593,7 @@ export class GameEngine {
     // Tutorial state
     tutorialStep: number = 0;
     tutorialTimer: number = 0;
+    tutorial_step_show: string = "";
     tutorialMessage: string = "";
     tutorialObjectiveMet: boolean = false;
 
@@ -645,6 +646,7 @@ export class GameEngine {
             this.tutorialStep = 0;
             this.tutorialTimer = 0;
             this.tutorialObjectiveMet = false;
+            this.tutorial_step_show = "";
             this.tutorialMessage = "初期化中...";
         } else {
             this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
@@ -707,7 +709,7 @@ export class GameEngine {
     triggerEliminationEffect(entity: Entity) {
         this.audio.playExplosion();
         const count = entity.isPlayer ? 500 : (entity.isSatellite ? 50 : 600);
-        const intensity = entity.isPlayer ? 40 : (entity.isSatellite ? 10 : 50);
+        const intensity = entity.isPlayer ? 60 : (entity.isSatellite ? 10 : 40);
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
         this.flashOpacity = entity.isPlayer ? 0.9 : (entity.isSatellite ? 0.1 : 0.6);
         this.flashColor = entity.color;
@@ -814,7 +816,8 @@ export class GameEngine {
         
         // ステップ1: 移動操作の確認
         if (this.tutorialStep === 0) {
-            this.tutorialMessage = "STEP 1/3: WASD,矢印キーまたはスワイプで移動";
+            this.tutorial_step_show = "STEP 1/3";
+            this.tutorialMessage = "WASD,矢印キーまたはスワイプで移動";
             if (player && player.vel.length() > 200) {
                 this.tutorialTimer += dt;
                 if (this.tutorialTimer > 1.0) {
@@ -833,7 +836,8 @@ export class GameEngine {
         }
         // ステップ2: 敵の撃破
         else if (this.tutorialStep === 1) {
-            this.tutorialMessage = "STEP 2/3: 敵に近づき重力で場外へ弾き出せ！";
+            this.tutorial_step_show = "STEP 2/3";
+            this.tutorialMessage = "敵に近づき重力で場外へ弾き出せ！";
             const enemies = this.entities.filter(e => e.isCpu);
             const warnings = this.spawnWarnings.filter(w => !w.isPlayer);
             
@@ -858,7 +862,8 @@ export class GameEngine {
         }
         // ステップ3: アイテムの使用
         else if (this.tutorialStep === 2) {
-            this.tutorialMessage = "STEP 3/3: 黄色のアイテムを取り、強化重力で敵を倒せ！";
+            this.tutorial_step_show = "STEP 3/3";
+            this.tutorialMessage = "黄色のアイテムを取り、強化重力で敵を倒せ！";
             const hasPowerUp = player && player.massMultiplier > 1.0;
             const enemies = this.entities.filter(e => e.isCpu);
             const warnings = this.spawnWarnings.filter(w => !w.isPlayer);
@@ -1254,7 +1259,8 @@ export class GameEngine {
                  timeSurvived: (Date.now() - this.startTime) / 1000, 
                  dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100), 
                  kills: this.killCount,
-                 tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined
+                 tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined,
+                 tutorial_step_show: this.gameMode === GameMode.TUTORIAL ? this.tutorial_step_show : undefined
              });
         }
     }
