@@ -13,6 +13,7 @@ const ITEM_INFOS: ItemInfo[] = [
     { type: ItemType.INVISIBILITY, name: "透明化", desc: "敵から認識されなくなる。一部アイテムの影響も受けなくなる。" },
     { type: ItemType.GRAVITY_WAVE, name: "重力波", desc: "周囲に強力な重力波を放ち、範囲内の敵を弾き飛ばす。" },
     { type: ItemType.INVERSION, name: "反転", desc: "引力を斥力に反転させ、近づく敵を押し返す。" },
+    { type: ItemType.REPULSIVE_TRAIL, name: "軌斥", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
     { type: ItemType.CAPTURE, name: "強奪", desc: "接近した敵からアイテム効果を奪い取る。" },
 ];
 
