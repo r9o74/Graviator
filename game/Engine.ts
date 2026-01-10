@@ -40,7 +40,7 @@ const COLOR_ITEM_INVERSION = '#32CD32'; // 緑
 const COLOR_ITEM_REPULSIVE = '#FF3300'; // 赤
 const COLOR_ITEM_CAPTURE = '#FF8C00'; // ダークオレンジ（強奪）
 
-const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ
+const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ（基準値）
 const LABEL_PHYSICAL_FONT_SIZE = 14; // アイテム使用状況ラベルのフォントサイズ
 
 // アイテム設定
@@ -48,11 +48,11 @@ const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
 const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
 const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
 const ITEM_SPAWN_INTERVAL_MIN = 2.0;
-const ITEM_SPAWN_INTERVAL_MAX = 5.0;
+const ITEM_SPAWN_INTERVAL_MAX = 3.0;
 
 
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪
-const item_ratio = [1, 1, 1, 1, 1, 1, 1]; // アイテム出現比率
+const item_ratio = [1, 0, 1, 0, 1, 0, 3]; // アイテム出現比率
 
 
 // 質量増加
@@ -92,7 +92,8 @@ const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ
 
 // 強奪 (Capture)
 const CAPTURE_DURATION = 8.0;
-const CAPTURE_RADIUS = 70.0;
+const CAPTURE_RADIUS = 120.0;
+const CAPTURE_REQUIRED_TIME = 0.7; // 強奪にかかる時間
 
 
 export enum ItemType {
@@ -168,18 +169,64 @@ class GravityWave {
     }
 }
 
+// 物理判定のない視覚的のみの波
+class VisualWave {
+    origin: Vector2;
+    radius: number = 0;
+    maxRadius: number = 150;
+    color: string;
+    life: number = 1.0;
+    speed: number = 500.0;
+
+    constructor(x: number, y: number, color: string) {
+        this.origin = new Vector2(x, y);
+        this.color = color;
+    }
+
+    update(dt: number) {
+        this.radius += this.speed * dt;
+        this.life = 1.0 - (this.radius / this.maxRadius);
+    }
+
+    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
+        if (this.life <= 0) return;
+        ctx.save();
+        
+        ctx.beginPath();
+        ctx.arc(this.origin.x, this.origin.y, Math.max(0, this.radius), 0, Math.PI * 2);
+        ctx.strokeStyle = this.color;
+        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.lineWidth = 5 / scaleFactor;
+        ctx.stroke();
+
+        const innerRadius = this.radius - 20;
+        if (innerRadius > 0) {
+            ctx.beginPath();
+            ctx.arc(this.origin.x, this.origin.y, innerRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = this.color;
+            ctx.globalAlpha = Math.max(0, this.life * 0.4);
+            ctx.lineWidth = 2 / scaleFactor;
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
+
 class Particle {
     pos: Vector2;
     vel: Vector2;
     life: number;
     maxLife: number;
     color: string;
-    constructor(x: number, y: number, vel: Vector2, color: string = COLOR_PARTICLE, lifeMultiplier: number = 1.0) {
+    sizeMultiplier: number;
+
+    constructor(x: number, y: number, vel: Vector2, color: string = COLOR_PARTICLE, lifeMultiplier: number = 1.0, sizeMultiplier: number = 1.0) {
         this.pos = new Vector2(x, y);
         this.vel = vel;
         this.life = 1.0;
         this.maxLife = (0.2 + Math.random() * 0.4) * lifeMultiplier;
         this.color = color;
+        this.sizeMultiplier = sizeMultiplier;
     }
     update(dt: number) {
         this.pos.x += this.vel.x * dt;
@@ -191,7 +238,7 @@ class Particle {
         ctx.globalAlpha = Math.max(0, this.life) * 0.9;
         ctx.fillStyle = this.color;
         ctx.beginPath();
-        const radius = PARTICLE_PHYSICAL_RADIUS / Math.pow(scaleFactor, 0.7);
+        const radius = (PARTICLE_PHYSICAL_RADIUS * this.sizeMultiplier) / Math.pow(scaleFactor, 0.7);
         ctx.arc(this.pos.x, this.pos.y, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1.0;
@@ -285,6 +332,7 @@ class Entity {
     inversionTimer: number = 0;
     repulsiveTrailTimer: number = 0;
     captureTimer: number = 0;
+    captureProgress: Map<Entity, number> = new Map();
     waveChargeCount: number = 0;
     waveChargeTimer: number = 0;
     waveForce: Vector2 = new Vector2();
@@ -463,8 +511,8 @@ class Entity {
         if (isCapturing) {
             ctx.save();
             ctx.strokeStyle = COLOR_ITEM_CAPTURE;
-            ctx.lineWidth = 1 / scaleFactor;
-            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 3 / scaleFactor;
+            ctx.setLineDash([]);
             ctx.beginPath();
             ctx.arc(this.pos.x, this.pos.y, CAPTURE_RADIUS, 0, Math.PI * 2);
             ctx.stroke();
@@ -579,7 +627,7 @@ class Entity {
 export class GameEngine {
     canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; audio: AudioManager;
     width: number = 0; height: number = 0; logicalWidth: number = 0; logicalHeight: number = 0; logicalArea: number = 0; scaleFactor: number = 1; dpr: number = 1;
-    entities: Entity[] = []; particles: Particle[] = []; items: Item[] = []; gravityWaves: GravityWave[] = [];
+    entities: Entity[] = []; particles: Particle[] = []; items: Item[] = []; gravityWaves: GravityWave[] = []; visualWaves: VisualWave[] = [];
     gameState: GameState = GameState.MENU; gameMode: GameMode = GameMode.SURVIVAL;
     input: InputState = { up: false, down: false, left: false, right: false };
     lastTime: number = 0; animationId: number = 0; startTime: number = 0;
@@ -624,7 +672,7 @@ export class GameEngine {
 
     async start(mode: GameMode = GameMode.SURVIVAL) {
         await this.audio.resume(); this.audio.playStart(); this.resize(); this.gameMode = mode;
-        this.entities = []; this.particles = []; this.spawnWarnings = []; this.items = []; this.gravityWaves = [];
+        this.entities = []; this.particles = []; this.spawnWarnings = []; this.items = []; this.gravityWaves = []; this.visualWaves = [];
         this.shakeIntensity = 0; this.flashOpacity = 0; 
         
         // 1秒遅延して開始するための調整
@@ -729,6 +777,25 @@ export class GameEngine {
         const particleVel = normDir.scale(-speed).add(new Vector2((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread));
         const color = Math.random() > 0.8 ? '#FFFFFF' : entity.color;
         this.particles.push(new Particle(entity.pos.x + offset.x, entity.pos.y + offset.y, particleVel, color));
+    }
+    
+    spawnCaptureStreamParticle(from: Entity, to: Entity, color: string) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = from.radius + 5 + Math.random() * 20;
+        const startX = from.pos.x + Math.cos(angle) * dist;
+        const startY = from.pos.y + Math.sin(angle) * dist;
+        
+        const dx = to.pos.x - startX;
+        const dy = to.pos.y - startY;
+        const len = Math.sqrt(dx*dx + dy*dy);
+        const speed = 400 + Math.random() * 200; 
+        
+        if (len > 0) {
+            const vel = new Vector2(dx/len * speed, dy/len * speed);
+            // 粒子の大きさをランダムに変更 (0.5倍 ~ 1.2倍)
+            const size = 0.5 + Math.random() * 0.7;
+            this.particles.push(new Particle(startX, startY, vel, color, 0.4, size));
+        }
     }
     
     spawnTransferParticles(from: Entity, to: Entity, color: string) {
@@ -915,6 +982,10 @@ export class GameEngine {
             this.gravityWaves[i].update(dt, this.entities);
             if (this.gravityWaves[i].life <= 0) this.gravityWaves.splice(i, 1);
         }
+        for (let i = this.visualWaves.length - 1; i >= 0; i--) {
+            this.visualWaves[i].update(dt);
+            if (this.visualWaves[i].life <= 0) this.visualWaves.splice(i, 1);
+        }
         
         // PAUSE時は物理演算スキップ
         if (this.gameState === GameState.PAUSED) {
@@ -994,7 +1065,12 @@ export class GameEngine {
         
         // Capture Logic: Steal buffs
         for (const capturer of this.entities) {
-            if (capturer.captureTimer <= 0) continue;
+            if (capturer.captureTimer <= 0) {
+                if (capturer.captureProgress.size > 0) capturer.captureProgress.clear();
+                continue;
+            }
+
+            const activeTargetsInFrame = new Set<Entity>();
 
             for (const victim of this.entities) {
                 if (capturer === victim || victim.isSatellite) continue; 
@@ -1006,56 +1082,94 @@ export class GameEngine {
                 const distSq = dx*dx + dy*dy;
                 
                 if (distSq < CAPTURE_RADIUS * CAPTURE_RADIUS) {
-                    let stoleSomething = false;
+                    // Check if victim has anything to steal
+                    const buffs: string[] = [];
+                    if (victim.powerupTimer > 0) buffs.push(COLOR_ITEM_MASS);
+                    if (victim.stealthTimer > 0) buffs.push(COLOR_ITEM_STEALTH);
+                    if (victim.inversionTimer > 0) buffs.push(COLOR_ITEM_INVERSION);
+                    if (victim.repulsiveTrailTimer > 0) buffs.push(COLOR_ITEM_REPULSIVE);
+                    if (victim.waveChargeCount > 0) buffs.push(COLOR_ITEM_WAVE);
 
-                    // Steal Powerup
-                    if (victim.powerupTimer > 0) {
-                        capturer.powerupTimer = Math.max(capturer.powerupTimer, victim.powerupTimer);
-                        capturer.massMultiplier = MASS_BOOST_MULTIPLIER;
-                        capturer.thrustMultiplier = MASS_BOOST_MULTIPLIER;
-                        victim.powerupTimer = 0;
-                        victim.massMultiplier = 1.0;
-                        victim.thrustMultiplier = 1.0;
-                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_MASS);
-                        stoleSomething = true;
+                    if (buffs.length > 0) {
+                        activeTargetsInFrame.add(victim);
+                        const currentProgress = capturer.captureProgress.get(victim) || 0;
+                        const nextProgress = currentProgress + dt;
+                        capturer.captureProgress.set(victim, nextProgress);
+
+                        // Particle Effect (Suction)
+                        // 量を増やす: 1フレームに2個生成して密度を上げる
+                        for (let i = 0; i < 20; i++) {
+                             const color = buffs[Math.floor(Math.random() * buffs.length)];
+                             this.spawnCaptureStreamParticle(victim, capturer, color);
+                        }
+
+                        if (nextProgress >= CAPTURE_REQUIRED_TIME) {
+                            let stoleSomething = false;
+
+                            // Steal Powerup
+                            if (victim.powerupTimer > 0) {
+                                capturer.powerupTimer = Math.max(capturer.powerupTimer, victim.powerupTimer);
+                                capturer.massMultiplier = MASS_BOOST_MULTIPLIER;
+                                capturer.thrustMultiplier = MASS_BOOST_MULTIPLIER;
+                                victim.powerupTimer = 0;
+                                victim.massMultiplier = 1.0;
+                                victim.thrustMultiplier = 1.0;
+                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_MASS);
+                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_MASS));
+                                stoleSomething = true;
+                            }
+                            // Steal Stealth
+                            if (victim.stealthTimer > 0) {
+                                capturer.stealthTimer = Math.max(capturer.stealthTimer, victim.stealthTimer);
+                                victim.stealthTimer = 0;
+                                victim.stealthOpacity = 1.0;
+                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_STEALTH);
+                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_STEALTH));
+                                stoleSomething = true;
+                            }
+                            // Steal Inversion
+                            if (victim.inversionTimer > 0) {
+                                capturer.inversionTimer = Math.max(capturer.inversionTimer, victim.inversionTimer);
+                                victim.inversionTimer = 0;
+                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_INVERSION);
+                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_INVERSION));
+                                stoleSomething = true;
+                            }
+                            // Steal Repulsive Trail
+                            if (victim.repulsiveTrailTimer > 0) {
+                                capturer.repulsiveTrailTimer = Math.max(capturer.repulsiveTrailTimer, victim.repulsiveTrailTimer);
+                                capturer.trail = []; // Reset capturer trail to be safe
+                                
+                                victim.repulsiveTrailTimer = 0;
+                                victim.trail.forEach(p => p.isRepulsive = false); // Clear victim trail effect
+                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_REPULSIVE);
+                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_REPULSIVE));
+                                stoleSomething = true;
+                            }
+                             // Steal Gravity Wave Charges
+                            if (victim.waveChargeCount > 0) {
+                                capturer.waveChargeCount += victim.waveChargeCount;
+                                capturer.waveChargeTimer = 0.01; // Trigger soon
+                                victim.waveChargeCount = 0;
+                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
+                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_WAVE));
+                                stoleSomething = true;
+                            }
+                            
+                            if (stoleSomething) {
+                                this.audio.playUiHover(); // Little sound for stealing
+                                // Reset progress for this victim to prevent multi-triggering in same frame (logic mostly handled by victim losing buff)
+                                capturer.captureProgress.set(victim, 0); 
+                            }
+                        }
                     }
-                    // Steal Stealth
-                    if (victim.stealthTimer > 0) {
-                        capturer.stealthTimer = Math.max(capturer.stealthTimer, victim.stealthTimer);
-                        victim.stealthTimer = 0;
-                        victim.stealthOpacity = 1.0;
-                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_STEALTH);
-                        stoleSomething = true;
-                    }
-                    // Steal Inversion
-                    if (victim.inversionTimer > 0) {
-                        capturer.inversionTimer = Math.max(capturer.inversionTimer, victim.inversionTimer);
-                        victim.inversionTimer = 0;
-                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_INVERSION);
-                        stoleSomething = true;
-                    }
-                    // Steal Repulsive Trail
-                    if (victim.repulsiveTrailTimer > 0) {
-                        capturer.repulsiveTrailTimer = Math.max(capturer.repulsiveTrailTimer, victim.repulsiveTrailTimer);
-                        capturer.trail = []; // Reset capturer trail to be safe
-                        
-                        victim.repulsiveTrailTimer = 0;
-                        victim.trail.forEach(p => p.isRepulsive = false); // Clear victim trail effect
-                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_REPULSIVE);
-                        stoleSomething = true;
-                    }
-                     // Steal Gravity Wave Charges
-                    if (victim.waveChargeCount > 0) {
-                        capturer.waveChargeCount += victim.waveChargeCount;
-                        capturer.waveChargeTimer = 0.01; // Trigger soon
-                        victim.waveChargeCount = 0;
-                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
-                        stoleSomething = true;
-                    }
-                    
-                    if (stoleSomething) {
-                        this.audio.playUiHover(); // Little sound for stealing
-                    }
+                }
+            }
+
+            // Cleanup entities no longer in range
+            for (const key of capturer.captureProgress.keys()) {
+                if (!activeTargetsInFrame.has(key)) {
+                    capturer.captureProgress.delete(key);
                 }
             }
         }
@@ -1286,6 +1400,7 @@ export class GameEngine {
         this.drawGrid(); this.drawBoundaries(); this.drawGravityLines(); this.drawSpawnWarnings();
         this.items.forEach(item => item.draw(this.ctx, this.scaleFactor));
         this.gravityWaves.forEach(wave => wave.draw(this.ctx, this.scaleFactor));
+        this.visualWaves.forEach(wave => wave.draw(this.ctx, this.scaleFactor));
         this.ctx.globalCompositeOperation = 'lighter';
         this.particles.forEach(p => p.draw(this.ctx, this.scaleFactor)); this.entities.forEach(e => e.draw(this.ctx, this.scaleFactor));
         this.ctx.restore();
