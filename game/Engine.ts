@@ -14,7 +14,7 @@ const THRUST_FORCE = 1800.0;
 const CPU_THRUST_FORCE = 1800.0;
 const BREAKING_CONSTANT = 3.5; // 減速力倍率
 const WALL_MARGIN = 150; // 減速力強化エリア範囲
-const BREAK_BOOST = 50; // WALL_MARGIN / BREAK_BOOST = 最大倍率増加量
+const BREAK_BOOST = 25; // WALL_MARGIN / BREAK_BOOST = 最大倍率増加量
 const ENEMY_NUMBER_SURVIVAL = 10;
 const ENEMY_NUMBER_ENDLESS = 5;
 const SAFE_DISTANCE = 200;
@@ -48,11 +48,11 @@ const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
 const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
 const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
 const ITEM_SPAWN_INTERVAL_MIN = 2.0;
-const ITEM_SPAWN_INTERVAL_MAX = 3.0;
+const ITEM_SPAWN_INTERVAL_MAX = 5.0;
 
 
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪
-const item_ratio = [1, 0, 1, 0, 1, 0, 3]; // アイテム出現比率
+const item_ratio = [1, 1, 1, 1, 1, 1, 1]; // アイテム出現比率
 
 
 // 質量増加
@@ -93,7 +93,7 @@ const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ
 // 強奪 (Capture)
 const CAPTURE_DURATION = 8.0;
 const CAPTURE_RADIUS = 120.0;
-const CAPTURE_REQUIRED_TIME = 0.7; // 強奪にかかる時間
+const CAPTURE_REQUIRED_TIME = 0.5; // 強奪にかかる時間
 
 
 export enum ItemType {
@@ -176,7 +176,7 @@ class VisualWave {
     maxRadius: number = 150;
     color: string;
     life: number = 1.0;
-    speed: number = 500.0;
+    speed: number = 400.0;
 
     constructor(x: number, y: number, color: string) {
         this.origin = new Vector2(x, y);
@@ -195,7 +195,7 @@ class VisualWave {
         ctx.beginPath();
         ctx.arc(this.origin.x, this.origin.y, Math.max(0, this.radius), 0, Math.PI * 2);
         ctx.strokeStyle = this.color;
-        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.globalAlpha = Math.max(0, this.life * 1.2);
         ctx.lineWidth = 5 / scaleFactor;
         ctx.stroke();
 
@@ -204,7 +204,7 @@ class VisualWave {
             ctx.beginPath();
             ctx.arc(this.origin.x, this.origin.y, innerRadius, 0, Math.PI * 2);
             ctx.strokeStyle = this.color;
-            ctx.globalAlpha = Math.max(0, this.life * 0.4);
+            ctx.globalAlpha = Math.max(0, this.life * 0.6);
             ctx.lineWidth = 2 / scaleFactor;
             ctx.stroke();
         }
@@ -1098,7 +1098,7 @@ export class GameEngine {
 
                         // Particle Effect (Suction)
                         // 量を増やす: 1フレームに2個生成して密度を上げる
-                        for (let i = 0; i < 20; i++) {
+                        for (let i = 0; i < 40; i++) {
                              const color = buffs[Math.floor(Math.random() * buffs.length)];
                              this.spawnCaptureStreamParticle(victim, capturer, color);
                         }
