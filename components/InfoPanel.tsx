@@ -5,6 +5,7 @@ interface InfoPanelProps {
     stats: GameStats | null;
 }
 
+// ゲーム中のステータス表示パネル
 const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
     const mode = stats?.mode || GameMode.SURVIVAL;
     const speed = stats?.speed || 0;
@@ -16,9 +17,9 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
     const time = stats?.timeSurvived || 0;
     const kills = stats?.kills || 0;
 
-    // スケールを調整してメーターの動きを強調
+    // メーター表示の割合を計算 (0-100)
     const speedPercent = Math.min((speed / Math.max(800, maxSpeed)) * 100, 100);
-    const gravityPercent = Math.min((gravity / Math.max(5000, maxGravity)) * 100, 100);
+    const gravityPercent = Math.min((gravity / Math.max(20000, maxGravity)) * 100, 100);
 
     return (
         <div className="w-full h-auto bg-transparent flex flex-col p-1 landscape:p-2 gap-1 landscape:gap-1.5 overflow-visible select-none relative">
@@ -35,14 +36,14 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
                 .bar-container { background: rgba(255, 255, 255, 0.1); }
             `}</style>
 
-            {/* Header - Hidden in portrait to save space */}
+            {/* ヘッダー部分（横画面のみ） */}
             <div className="hidden landscape:flex shrink-0 items-center justify-between px-1 mr-2">
                 <div className="text-[10px] text-cyan-500/80 font-bold tracking-[0.3em] uppercase">System Telemetry</div>
             </div>
 
             <div className="grid grid-cols-2 gap-1 landscape:gap-1 landscape:flex landscape:flex-col landscape:gap-1 landscape:mr-2">
                 
-                {/* Speed Card */}
+                {/* 速度メーター */}
                 <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
                     <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-0.5">
                         <div className="flex flex-col text-left">
@@ -64,7 +65,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
                     </div>
                 </div>
 
-                {/* Gravity Card */}
+                {/* 引力メーター */}
                 <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
                     <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-0.5">
                         <div className="flex flex-col text-left">
@@ -86,7 +87,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
                     </div>
                 </div>
 
-                {/* Status Card */}
+                {/* 残り・撃墜数 */}
                 <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
                     <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-0.5">
                         <div className="flex flex-col text-left">
@@ -118,7 +119,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
                     </div>
                 </div>
 
-                {/* Time Card */}
+                {/* 経過時間 */}
                 <div className="col-span-1 liquid-card py-1 px-2 landscape:px-4 rounded-xl landscape:rounded-2xl flex flex-col justify-between hover:bg-white/10">
                     <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-1">
                         <div className="flex flex-col text-left">

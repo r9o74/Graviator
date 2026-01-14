@@ -1,62 +1,70 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './game/Engine.ts';
-import { GameState, InputState, GameStats, GameMode } from './types.ts';
+import { GameState, InputState, GameStats, GameMode, Difficulty } from './types.ts';
 import MenuOverlay from './components/MenuOverlay.tsx';
 import InfoPanel from './components/InfoPanel.tsx';
 import VirtualJoystick from './components/VirtualJoystick.tsx';
 
 function App() {
+    // Canvas要素への参照
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    // ゲームエンジンインスタンスへの参照（レンダリング毎に作り直さないためRefを使用）
     const engineRef = useRef<GameEngine | null>(null);
+    
+    // Reactのステート管理（UI表示用）
     const [gameState, setGameState] = useState<GameState>(GameState.MENU);
     const [gameStats, setGameStats] = useState<GameStats | null>(null);
+    const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(Difficulty.NORMAL);
+    const [showItemGuide, setShowItemGuide] = useState(false);
     
-    // 現在選択されているモードをステートとRefの両方で管理
+    // 現在選択されているモードをステートとRefの両方で管理（イベントリスナー内での参照用）
     const [currentMode, setCurrentMode] = useState<GameMode>(GameMode.SURVIVAL);
     const currentModeRef = useRef<GameMode>(GameMode.SURVIVAL);
     
-    // State Ref for Event Listeners
+    // イベントリスナー内で最新のステートを参照するためのRef
     const gameStateRef = useRef<GameState>(GameState.MENU);
     
-    // Inputs
+    // 入力状態の保持
     const keyboardInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
     const joystickInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
 
-    // Sync state to refs
+    // StateをRefに同期
     useEffect(() => {
         gameStateRef.current = gameState;
     }, [gameState]);
 
-    // メニュー状態かどうかの判定フラグ
     const isMenu = gameState === GameState.MENU;
 
-    // UIの表示切り替えアニメーション完了後にエンジンをリサイズする
+    // UIアニメーション完了後にCanvasサイズを再計算する処理
     useEffect(() => {
         const timer = setTimeout(() => {
             if (engineRef.current) {
                 engineRef.current.resize();
             }
-        }, 550); // transition duration (500ms) + buffer
+        }, 550); 
         return () => clearTimeout(timer);
     }, [gameState]);
 
-    const handleStartGame = (mode: GameMode = GameMode.SURVIVAL) => {
-        // 1. まずUIの状態をPLAYINGに変更してアニメーション（サイドバーの格納など）を開始
+    // ゲーム開始処理
+    const handleStartGame = (mode: GameMode = GameMode.SURVIVAL, difficulty: Difficulty = selectedDifficulty) => {
+        // 1. UIの状態を変更してアニメーション開始
         setGameState(GameState.PLAYING);
         setCurrentMode(mode);
         currentModeRef.current = mode;
+        setShowItemGuide(false);
 
-        // 2. アニメーションが完了し、キャンバスサイズが確定するのを待ってからゲームロジックを開始
-        // これにより、start()内で計算されるスポーン位置が新しい画面サイズに基づいたものになる
+        // 2. アニメーション完了を待ってからゲームループを開始
         setTimeout(() => {
             if (engineRef.current) {
                 engineRef.current.resize();
-                engineRef.current.start(mode);
+                engineRef.current.start(mode, difficulty);
             }
-        }, 600); // アニメーション時間(500ms) + マージン
+        }, 600); 
     };
 
+    // ホーム画面へ戻る
     const handleGoHome = () => {
+        setShowItemGuide(false);
         if (engineRef.current) {
             engineRef.current.setGameState(GameState.MENU);
         } else {
@@ -64,18 +72,21 @@ function App() {
         }
     };
 
+    // 再開
     const handleResume = () => {
         if (engineRef.current) {
             engineRef.current.togglePause();
         }
     };
 
+    // ポーズ切り替え
     const handlePauseToggle = () => {
         if (engineRef.current) {
             engineRef.current.togglePause();
         }
     };
 
+    // キーボード入力とジョイスティック入力を統合してエンジンに渡す
     const updateEngineInput = () => {
         if (!engineRef.current) return;
         
@@ -87,31 +98,35 @@ function App() {
             down: k.down || j.down,
             left: k.left || j.left,
             right: k.right || j.right,
-            vector: j.vector 
+            vector: j.vector // ジョイスティックのアナログ入力優先
         };
 
         engineRef.current.handleInput(mergedInput);
     };
 
+    // ジョイスティックからの入力ハンドラ
     const handleJoystickInput = (input: InputState) => {
         joystickInputRef.current = input;
         updateEngineInput();
     };
 
+    // 初期化エフェクト（マウント時に1回だけ実行）
     useEffect(() => {
         if (!canvasRef.current) return;
 
+        // ゲームエンジンのインスタンス化
         const engine = new GameEngine(
             canvasRef.current, 
             (state) => {
-                setGameState(state);
+                setGameState(state); // エンジンからの状態変更通知をReactステートに反映
             },
             (stats) => {
-                setGameStats(stats);
+                setGameStats(stats); // エンジンからの統計情報をReactステートに反映
             }
         );
         engineRef.current = engine;
 
+        // キーボードイベントハンドラ
         const handleKey = (e: KeyboardEvent, isDown: boolean) => {
             const key = e.key;
             if (key === 'ArrowUp' || key === 'w') keyboardInputRef.current.up = isDown;
@@ -128,6 +143,7 @@ function App() {
             const key = e.key.toLowerCase();
             const code = e.code;
 
+            // スペースキーでのポーズ切り替えやメニュー操作
             if (current === GameState.PLAYING) {
                 if (code === 'Space') {
                     e.preventDefault(); 
@@ -141,17 +157,35 @@ function App() {
                 }
                 else if (key === 'backspace') {
                      e.preventDefault(); 
-                     if (engineRef.current) engineRef.current.setGameState(GameState.MENU);
+                     handleGoHome();
                 }
             }
             else if (current === GameState.MENU || current === GameState.GAME_OVER || current === GameState.VICTORY) {
+                // 1, 2, 3 で難易度切り替え
+                if (key === '1') setSelectedDifficulty(Difficulty.EASY);
+                if (key === '2') setSelectedDifficulty(Difficulty.NORMAL);
+                if (key === '3') setSelectedDifficulty(Difficulty.HARD);
+
+                // ホーム画面での追加操作
+                if (current === GameState.MENU) {
+                    if (key === 't') handleStartGame(GameMode.TUTORIAL, Difficulty.EASY);
+                    if (key === 'i') setShowItemGuide(prev => !prev);
+                }
+
+                // 結果画面で Backspace を押すとホームへ
+                if ((current === GameState.GAME_OVER || current === GameState.VICTORY) && key === 'backspace') {
+                    e.preventDefault();
+                    handleGoHome();
+                }
+
+                // S, E でゲーム開始
                 if (key === 's') {
                     handleStartGame(GameMode.SURVIVAL);
                 } else if (key === 'e') {
                     handleStartGame(GameMode.ENDLESS);
                 } else if (code === 'Enter' || code === 'Space') {
                     e.preventDefault();
-                    if (engineRef.current) handleStartGame(currentModeRef.current);
+                    handleStartGame(currentModeRef.current);
                 }
             }
 
@@ -166,18 +200,20 @@ function App() {
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
 
+        // ゲームループ開始
         engine.loop(0);
 
+        // クリーンアップ
         return () => {
             window.removeEventListener('keydown', onKeyDown);
             window.removeEventListener('keyup', onKeyUp);
             engine.stop();
         };
-    }, []);
+    }, [selectedDifficulty]); // handleStartGameが現在のselectedDifficultyを使用するように依存関係を追加
 
     return (
         <div className="relative w-screen h-screen bg-black overflow-hidden select-none flex flex-col landscape:flex-row">
-            {/* Sidebar (Landscape) - Transitions visible only when NOT in Menu */}
+            {/* サイドバー (横画面時) */}
             <div className={`
                 hidden landscape:flex flex-col bg-[#080808] border-r border-white/10 shrink-0 relative z-30 shadow-[10px_0_30px_rgba(0,0,0,0.5)] h-full overflow-hidden
                 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)]
@@ -191,7 +227,7 @@ function App() {
                 </div>
             </div>
 
-            {/* Top Bar (Portrait) - Transitions */}
+            {/* トップバー (縦画面時) */}
             <div className={`
                 landscape:hidden w-full relative z-30
                 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
@@ -200,12 +236,13 @@ function App() {
                 <InfoPanel stats={gameStats} />
             </div>
 
-            {/* Main Game Area */}
+            {/* メインゲームエリア */}
             <div className="flex-1 relative min-h-0 w-full transition-all duration-500">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black opacity-80 z-0"></div>
                 <canvas ref={canvasRef} className="absolute inset-0 z-10 block" />
                 <div className="absolute inset-0 pointer-events-none z-20 shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]"></div>
                 
+                {/* ポーズボタン */}
                 {gameState === GameState.PLAYING && (
                     <button 
                         onClick={handlePauseToggle}
@@ -218,7 +255,7 @@ function App() {
                     </button>
                 )}
 
-                {/* Tutorial Message Overlay */}
+                {/* チュートリアルメッセージオーバーレイ */}
                 {gameState === GameState.PLAYING && currentMode === GameMode.TUTORIAL && gameStats?.tutorialMessage && (
                     <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-40 w-full px-4 text-center pointer-events-none">
                         <div className="inline-block bg-black/10 backdrop-blur-sm border border-cyan-500/30 px-6 py-2 rounded-2xl shadow-[0_0_30px_rgba(6,182,212,0.2)]">
@@ -238,10 +275,14 @@ function App() {
                     onHome={handleGoHome} 
                     onResume={handleResume}
                     gameStats={gameStats}
+                    selectedDifficulty={selectedDifficulty}
+                    setSelectedDifficulty={setSelectedDifficulty}
+                    showItemGuide={showItemGuide}
+                    setShowItemGuide={setShowItemGuide}
                 />
             </div>
 
-            {/* Bottom Bar Joystick (Portrait) - Transitions */}
+            {/* ボトムバー ジョイスティック (縦画面時) */}
             <div className={`
                 landscape:hidden w-full bg-[#080808] border-t border-white/10 shrink-0 relative z-30 flex items-center justify-center
                 transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden

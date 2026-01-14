@@ -7,6 +7,7 @@ interface ItemInfo {
     desc: string;
 }
 
+// アイテムの説明データ
 const ITEM_INFOS: ItemInfo[] = [
     { type: ItemType.MASS_BOOST, name: "質量増加", desc: "質量が大幅に増加し、敵を引き寄せる力が強くなる。" },
     { type: ItemType.SATELLITE, name: "衛星", desc: "周囲に7つの衛星を発射し、近くの敵を自動で迎撃する。" },
@@ -17,6 +18,7 @@ const ITEM_INFOS: ItemInfo[] = [
     { type: ItemType.CAPTURE, name: "強奪", desc: "接近した敵からアイテム効果を奪い取る。" },
 ];
 
+// アイテムのアイコンの描画コンポーネント（Engineの描画ロジックを流用）
 const ItemIcon = ({ type }: { type: ItemType }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -26,13 +28,14 @@ const ItemIcon = ({ type }: { type: ItemType }) => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // アイテムインスタンスを作成して描画
         const item = new Item(canvas.width / 2, canvas.height / 2, type);
         let animId: number;
 
         const render = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            item.update(0.016); // Rotate effect
-            item.draw(ctx, 1.0); // scaleFactor 1.0
+            item.update(0.016); // 少し回転させる
+            item.draw(ctx, 1.0); // scaleFactor = 1.0
             animId = requestAnimationFrame(render);
         };
         render();
@@ -47,6 +50,7 @@ interface ItemGuideProps {
     onClose: () => void;
 }
 
+// アイテム一覧と説明を表示するモーダルコンポーネント
 export const ItemGuide: React.FC<ItemGuideProps> = ({ onClose }) => {
     return (
         <div className="w-full h-full flex flex-col relative z-20">
@@ -59,7 +63,8 @@ export const ItemGuide: React.FC<ItemGuideProps> = ({ onClose }) => {
                     ✕
                 </button>
             </div>
-            
+
+            {/* アイテムリスト（種類が増えた時用にスクロール可能） */}
             <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
                 {ITEM_INFOS.map((info) => (
                     <div key={info.type} className="flex items-center bg-white/5 rounded-xl p-3 border border-white/15 hover:bg-white/10 transition-colors">

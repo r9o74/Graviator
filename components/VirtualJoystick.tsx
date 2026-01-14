@@ -5,41 +5,44 @@ interface VirtualJoystickProps {
     onInput: (input: InputState) => void;
 }
 
+// タッチ操作用のアナログスティックコンポーネント
 const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const stickRef = useRef<HTMLDivElement>(null);
     const [active, setActive] = useState(false);
-    const [origin, setOrigin] = useState({ x: 0, y: 0 }); // Screen coordinates relative to container
+    const [origin, setOrigin] = useState({ x: 0, y: 0 }); // タッチ開始位置（スティックの中心）
     
-    // Configuration
-    const maxRadius = 40; 
-    const deadZone = 5;
+    // 設定
+    const maxRadius = 40;  // スティックの最大可動半径
+    const deadZone = 5;    // 反応しない中心領域
 
-    // Helper to update DOM directly for performance
+    // DOM直接操作でパフォーマンスを確保（Reactの再レンダリングを回避）
     const updateStick = (x: number, y: number) => {
         if (stickRef.current) {
             stickRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         }
     };
 
+    // 操作開始（マウスダウン/タッチスタート）
     const handleStart = (clientX: number, clientY: number) => {
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         
-        // Set origin relative to the container
+        // コンテナ内での相対座標を計算
         const x = clientX - rect.left;
         const y = clientY - rect.top;
 
         setOrigin({ x, y });
         setActive(true);
         
-        // Reset stick position visually
+        // 視覚的なスティック位置をリセット
         updateStick(0, 0);
         
-        // Reset input on new touch
+        // 入力状態をリセット
         onInput({ up: false, down: false, left: false, right: false, vector: { x: 0, y: 0 } });
     };
 
+    // 操作中（マウス移動/タッチ移動）
     const handleMove = (clientX: number, clientY: number) => {
         if (!active || !containerRef.current) return;
         
@@ -47,11 +50,12 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
         const currentX = clientX - rect.left;
         const currentY = clientY - rect.top;
 
+        // 中心からの変位
         const dx = currentX - origin.x;
         const dy = currentY - origin.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Limit the stick movement to maxRadius
+        // 半径内に制限
         let clampedX = dx;
         let clampedY = dy;
         
@@ -61,10 +65,10 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             clampedY = Math.sin(angle) * maxRadius;
         }
 
-        // Direct DOM update to avoid React render cycle lag
+        // DOM更新
         updateStick(clampedX, clampedY);
 
-        // Calculate analog vector input (-1.0 to 1.0)
+        // 正規化されたベクトル入力 (-1.0 to 1.0) を計算
         let vectorX = 0;
         let vectorY = 0;
 
@@ -73,39 +77,37 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             vectorY = clampedY / maxRadius;
         }
 
-        const threshold = 0.3;
+        const threshold = 0.3; // デジタル入力（キーボード相当）の判定しきい値
         onInput({
             up: vectorY < -threshold,
             down: vectorY > threshold,
             left: vectorX < -threshold,
             right: vectorX > threshold,
-            vector: { x: vectorX * maxRadius, y: vectorY * maxRadius} // Pass raw vector for engine scaling
+            vector: { x: vectorX * maxRadius, y: vectorY * maxRadius} // エンジン側で正規化するため生の値に近いものを渡す
         });
     };
 
+    // 操作終了
     const handleEnd = () => {
         setActive(false);
         updateStick(0, 0);
         onInput({ up: false, down: false, left: false, right: false, vector: { x: 0, y: 0 } });
     };
 
-    // Mouse Events
+    // マウスイベント
     const onMouseDown = (e: React.MouseEvent) => handleStart(e.clientX, e.clientY);
     const onMouseMove = (e: React.MouseEvent) => handleMove(e.clientX, e.clientY);
     const onMouseUp = () => handleEnd();
     const onMouseLeave = () => handleEnd();
 
-    // Touch Events
+    // タッチイベント
     const onTouchStart = (e: React.TouchEvent) => {
-        // e.preventDefault(); // Prevented by CSS touch-action usually
         handleStart(e.touches[0].clientX, e.touches[0].clientY);
     };
     const onTouchMove = (e: React.TouchEvent) => {
-        // e.preventDefault();
         handleMove(e.touches[0].clientX, e.touches[0].clientY);
     };
     const onTouchEnd = (e: React.TouchEvent) => {
-        // e.preventDefault();
         handleEnd();
     };
 
@@ -121,7 +123,7 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            {/* Simple Idle Guide */}
+            {/* 待機中のガイド表示 */}
             <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 pointer-events-none ${active ? 'opacity-0' : 'opacity-100'}`}>
                  <div className="flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full border border-white/15 flex items-center justify-center animate-pulse">
@@ -131,7 +133,7 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
                  </div>
             </div>
 
-            {/* Lightweight Joystick Visuals */}
+            {/* ジョイスティックの可視部分 */}
             <div 
                 className="absolute pointer-events-none will-change-transform"
                 style={{ 
@@ -142,9 +144,9 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
                     transition: 'opacity 0.1s ease-out'
                 }}
             >
-                {/* Simple Ring Base */}
+                {/* 外枠リング */}
                 <div className="w-24 h-24 rounded-full border border-cyan-500/30 bg-black/40 flex items-center justify-center relative shadow-[0_0_15px_rgba(6,182,212,0.1)]">
-                    {/* Stick */}
+                    {/* 操作スティック */}
                     <div 
                         ref={stickRef}
                         className="w-8 h-8 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] will-change-transform"

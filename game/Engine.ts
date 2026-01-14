@@ -1,60 +1,65 @@
 import { Vector2 } from './Vector2.ts';
-import { InputState, GameState, GameStats, GameMode } from '../types.ts';
-import { AudioManager } from './AudioManager.ts';
+import { InputState, GameState, GameStats, GameMode, Difficulty } from '../types.ts';
 
-// デバイス検知
+// デバイス検知（モバイルかどうかの判定）
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// Constants
-const PLAYER_RADIUS = 12.0;
-const ENTITY_MASS = 10.0;
-const GRAVITY_CONSTANT = 40000.0;
-const GRAVITY_MAX = 250000.0;
-const THRUST_FORCE = 1800.0;
-const CPU_THRUST_FORCE = 1800.0;
-const BREAKING_CONSTANT = 3.5; // 減速力倍率
-const WALL_MARGIN = 150; // 減速力強化エリア範囲
-const BREAK_BOOST = 25; // WALL_MARGIN / BREAK_BOOST = 最大倍率増加量
-const ENEMY_NUMBER_SURVIVAL = 10;
-const ENEMY_NUMBER_ENDLESS = 5;
-const SAFE_DISTANCE = 200;
-const DIST_EXP = 0.88; // 万有引力の式の分母の冪数（DIST_EXP = 1.0 で通常の物理法則）
-const G_LINE_WIDTH = 1;
-const TRAIL_WIDTH = PLAYER_RADIUS / 1.8;
-const FRICTION = 0.100;
-const FRICTION_VEL_EXP = 0.0;
+// --- ゲーム定数定義 ---
+// 物理演算やゲームバランスに関わるパラメータ
+const PLAYER_RADIUS = 12.0;           // プレイヤーの半径
+const ENTITY_MASS = 10.0;             // 基本質量
+// 以下の値はデフォルト値として保持し、難易度によってクラス内でオーバーライドされる
+const DEFAULT_GRAVITY_CONSTANT = 40000.0;     
+const DEFAULT_CPU_THRUST_FORCE = 1800.0;      
+const DEFAULT_ENEMY_NUMBER_SURVIVAL = 10;     
+
+const GRAVITY_MAX = 250000.0;         // 重力の最大値制限（特異点回避）
+const THRUST_FORCE = 1800.0;          // プレイヤーの推進力
+const BREAKING_CONSTANT = 3.5;        // 壁際などでの減速係数
+const WALL_MARGIN = 150;              // 壁からの危険エリア距離
+const BREAK_BOOST = 25;               // 減速力のブースト係数
+const ENEMY_NUMBER_ENDLESS = 5;       // エンドレスモードの初期敵数
+const SAFE_DISTANCE = 200;            // スポーン時の安全距離
+const DIST_EXP = 0.88;                // 引力計算の距離の指数（1.0で物理的に正しい逆二乗則に近い挙動だが、ゲーム用に調整）
+const G_LINE_WIDTH = 1;               // 重力結合線の描画幅
+const TRAIL_WIDTH = PLAYER_RADIUS / 1.8; // 軌跡の幅
+const FRICTION = 0.100;               // 空間摩擦係数
+const FRICTION_VEL_EXP = 0.0;         // 摩擦の速度依存指数
 
 
-const BASE_LOGICAL_SIZE = IS_MOBILE ? 800 : 700;
-const BASE_AREA = BASE_LOGICAL_SIZE * BASE_LOGICAL_SIZE; // 基準となる面積定数
+const BASE_LOGICAL_SIZE = IS_MOBILE ? 800 : 700; // 画面サイズの基準値
+const BASE_AREA = BASE_LOGICAL_SIZE * BASE_LOGICAL_SIZE; 
 
-const TRAIL_LENGTH = 100; 
-const COLOR_PLAYER = '#00F0FF'; // シアン
-const COLOR_ENEMY = '#FF0055'; // マゼンタ
-const COLOR_PARTICLE = '#FFFFFF'; // 白
-const COLOR_ITEM_MASS = '#FFD700'; // 黄色
-const COLOR_ITEM_SATELLITE = '#E0E0E0'; // 白
-const COLOR_ITEM_STEALTH = '#646464'; // 灰色
-const COLOR_ITEM_WAVE = '#BF40BF'; // 紫
-const COLOR_ITEM_INVERSION = '#32CD32'; // 緑
-const COLOR_ITEM_REPULSIVE = '#FF3300'; // 赤
-const COLOR_ITEM_CAPTURE = '#FF8C00'; // ダークオレンジ（強奪）
+const TRAIL_LENGTH = 70;             // 軌跡の長さ
+// カラーパレット
+const COLOR_PLAYER = '#00F0FF';       // シアン（プレイヤー）
+const COLOR_ENEMY = '#FF0055';        // マゼンタ（敵）
+const COLOR_PARTICLE = '#FFFFFF';     // パーティクル基本色
+const COLOR_ITEM_MASS = '#FFD700';    // 質量増加（金）
+const COLOR_ITEM_SATELLITE = '#E0E0E0'; // 衛星（白銀）
+const COLOR_ITEM_STEALTH = '#646464'; // 透明化（灰）
+const COLOR_ITEM_WAVE = '#BF40BF';    // 重力波（紫）
+const COLOR_ITEM_INVERSION = '#32CD32'; // 反転（緑）
+const COLOR_ITEM_REPULSIVE = '#FF3300'; // 軌斥（赤）
+const COLOR_ITEM_CAPTURE = '#FF8C00';   // 強奪（ダークオレンジ）
 
 const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ（基準値）
-const LABEL_PHYSICAL_FONT_SIZE = 14; // アイテム使用状況ラベルのフォントサイズ
+const LABEL_PHYSICAL_FONT_SIZE = 14;  // ラベルフォントサイズ
 
-// アイテム設定
-const ITEM_RADIUS = 15; // アイテムの見た目の大きさ
-const ITEM_AREA_RADIUS = 30; // アイテムの当たり判定の大きさ
-const ITEM_SPAWN_START_DELAY = 3.0; // 初回スポーン時刻
+// アイテムスポーン設定
+const ITEM_RADIUS = 15; 
+const ITEM_AREA_RADIUS = 30; 
+const ITEM_SPAWN_START_DELAY = 3.0; 
 const ITEM_SPAWN_INTERVAL_MIN = 2.0;
-const ITEM_SPAWN_INTERVAL_MAX = 5.0;
+const ITEM_SPAWN_INTERVAL_MAX = 4.0;
 
 
+// アイテム出現比率
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪
-const item_ratio = [1, 1, 1, 1, 1, 1, 1]; // アイテム出現比率
+const item_ratio = [1, 1, 1, 1, 1, 1, 1]; 
 
 
+// --- アイテム効果パラメータ ---
 // 質量増加
 const POWERUP_DURATION = 6.0;
 const MASS_BOOST_MULTIPLIER = 7.0;
@@ -70,50 +75,54 @@ const SATELLITE_TRAIL_LENGTH = 50;
 const STEALTH_FADE_DURATION = 1.0;
 const STEALTH_INVIS_DURATION = 8.0; 
 const STEALTH_TOTAL_DURATION = STEALTH_FADE_DURATION * 2 + STEALTH_INVIS_DURATION;
-const GRAVITY_REDUCTION = 0.30; 
+const GRAVITY_REDUCTION = 0.30; // 重力影響の軽減率
 
 // 重力波
 const WAVE_SPEED = 700.0;
 const WAVE_FORCE = 45000.0;
 const WAVE_DURATION = 0.15;
 const WAVE_INTERVAL = 1.0;
-const WAVE_MAX_RADIUS = 600.0; // 射程
+const WAVE_MAX_RADIUS = 600.0;
 
 // 反転
 const INVERSION_DURATION = 7.0;
-const INVERSION_MULTIPLE_1 = 5.0; // 自分 -> 敵
-const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分
+const INVERSION_MULTIPLE_1 = 5.0;  // 自分 -> 敵 への斥力倍率
+const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分 への斥力倍率
 
 // 軌斥 (Repulsive Trail)
 const REPULSIVE_TRAIL_DURATION = 7.0;
 const REPULSIVE_TRAIL_RESTITUTION = 2.0; // 法線方向反発係数
 const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.5; // 接線方向反発係数
-const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ
+const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ（壁を作るため長くする）
 
 // 強奪 (Capture)
 const CAPTURE_DURATION = 8.0;
-const CAPTURE_RADIUS = 120.0;
-const CAPTURE_REQUIRED_TIME = 0.5; // 強奪にかかる時間
+const CAPTURE_RADIUS = 100.0;
+const CAPTURE_REQUIRED_TIME = 0.3; // 強奪完了に必要な継続時間
 
 
+// アイテムの種類定義
 export enum ItemType {
-    MASS_BOOST,
-    SATELLITE,
-    INVISIBILITY,
-    GRAVITY_WAVE,
-    INVERSION,
-    REPULSIVE_TRAIL,
-    CAPTURE
+    MASS_BOOST,      // 質量増加
+    SATELLITE,       // 衛星
+    INVISIBILITY,    // 透明化
+    GRAVITY_WAVE,    // 重力波
+    INVERSION,       // 引力反転
+    REPULSIVE_TRAIL, // 斥力トレイル
+    CAPTURE          // 能力強奪
 }
 
+// 軌跡の座標点
 interface Point { x: number; y: number; isRepulsive?: boolean; }
+// 出現警告マーカー
 interface SpawnWarning { x: number; y: number; timer: number; isPlayer?: boolean; }
 
+// 重力波クラス（物理影響あり）
 class GravityWave {
     origin: Vector2;
     radius: number = 0;
     owner: Entity;
-    hitEntities: Set<Entity> = new Set();
+    hitEntities: Set<Entity> = new Set(); // 既にヒットしたエンティティを記録
     life: number = 1.0;
 
     constructor(x: number, y: number, owner: Entity) {
@@ -121,24 +130,27 @@ class GravityWave {
         this.owner = owner;
     }
 
+    // 波の更新と衝突判定
     update(dt: number, entities: Entity[]) {
         this.radius += WAVE_SPEED * dt;
         this.life = 1.0 - (this.radius / WAVE_MAX_RADIUS);
         if (this.life <= 0) return;
 
         for (const entity of entities) {
+            // 自分や所有者は除外、既に当たったものも除外
             if (entity === this.owner || entity.owner === this.owner || this.hitEntities.has(entity)) continue;
             
             const dx = entity.pos.x - this.origin.x;
             const dy = entity.pos.y - this.origin.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
+            // 波の半径付近にいるエンティティに力を加える
             if (Math.abs(dist - this.radius) < 20) {
                 const angle = Math.atan2(dy, dx);
                 const dir = new Vector2(Math.cos(angle), Math.sin(angle));
                 const decay = Math.max(0.2, this.life);
                 
-                // Inverted targets are PULLED towards the center
+                // 反転状態なら引き寄せる、通常なら弾き飛ばす
                 const forceMagnitude = entity.isInversionActive() ? -WAVE_FORCE : WAVE_FORCE;
                 
                 entity.waveForce = dir.scale(forceMagnitude * decay);
@@ -152,11 +164,13 @@ class GravityWave {
         if (this.life <= 0) return;
         ctx.save();
         const color = '191, 64, 191';
+        // 波の描画
         ctx.beginPath();
         ctx.arc(this.origin.x, this.origin.y, Math.max(0, this.radius), 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${color}, ${Math.min(this.life * 1.2, 0.8)})`;
         ctx.lineWidth = 10 / scaleFactor;
         ctx.stroke();
+        // 内側の波
         const innerRadius = this.radius - 15;
         if (innerRadius > 0) {
             ctx.beginPath();
@@ -169,7 +183,7 @@ class GravityWave {
     }
 }
 
-// 物理判定のない視覚的のみの波
+// 物理判定のない視覚的のみの波（エフェクト用）
 class VisualWave {
     origin: Vector2;
     radius: number = 0;
@@ -198,20 +212,12 @@ class VisualWave {
         ctx.globalAlpha = Math.max(0, this.life * 1.2);
         ctx.lineWidth = 5 / scaleFactor;
         ctx.stroke();
-
-        const innerRadius = this.radius - 20;
-        if (innerRadius > 0) {
-            ctx.beginPath();
-            ctx.arc(this.origin.x, this.origin.y, innerRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = this.color;
-            ctx.globalAlpha = Math.max(0, this.life * 0.6);
-            ctx.lineWidth = 2 / scaleFactor;
-            ctx.stroke();
-        }
+        // ...
         ctx.restore();
     }
 }
 
+// パーティクルクラス（エフェクト）
 class Particle {
     pos: Vector2;
     vel: Vector2;
@@ -245,10 +251,11 @@ class Particle {
     }
 }
 
+// アイテムクラス
 export class Item {
     pos: Vector2;
     type: ItemType;
-    angle: number = 0;
+    angle: number = 0; // 回転用
     constructor(x: number, y: number, type: ItemType) {
         this.pos = new Vector2(x, y);
         this.type = type;
@@ -260,6 +267,7 @@ export class Item {
         ctx.save();
         ctx.translate(this.pos.x, this.pos.y);
         ctx.rotate(this.angle);
+        // アイテムタイプに応じた色と形状の描画
         let color = COLOR_ITEM_MASS;
         if (this.type === ItemType.SATELLITE) color = COLOR_ITEM_SATELLITE;
         else if (this.type === ItemType.INVISIBILITY) color = COLOR_ITEM_STEALTH;
@@ -322,8 +330,15 @@ export class Item {
     }
 }
 
+// エンティティクラス（プレイヤー、敵、衛星など）
 class Entity {
-    pos: Vector2; vel: Vector2; acc: Vector2; radius: number; mass: number; color: string; isPlayer: boolean; isCpu: boolean; breakingValue: number; trail: Point[];
+    pos: Vector2; vel: Vector2; acc: Vector2; 
+    radius: number; mass: number; color: string; 
+    isPlayer: boolean; isCpu: boolean; 
+    breakingValue: number; // 壁際でのブレーキ強度
+    trail: Point[];        // 移動軌跡
+    
+    // バフ・デバフタイマー
     massMultiplier: number = 1.0;
     thrustMultiplier: number = 1.0;
     powerupTimer: number = 0;
@@ -332,11 +347,17 @@ class Entity {
     inversionTimer: number = 0;
     repulsiveTrailTimer: number = 0;
     captureTimer: number = 0;
+    
+    // 強奪スキル用
     captureProgress: Map<Entity, number> = new Map();
+    
+    // 重力波スキル用
     waveChargeCount: number = 0;
     waveChargeTimer: number = 0;
-    waveForce: Vector2 = new Vector2();
+    waveForce: Vector2 = new Vector2(); // 外部から受ける重力波の力
     waveForceTimer: number = 0;
+    
+    // 衛星用
     isSatellite: boolean = false;
     owner: Entity | null = null;
     
@@ -350,8 +371,10 @@ class Entity {
         this.breakingValue = 0; this.trail = [];
     }
     
+    // 現在の質量（バフ込み）
     getCurrentMass(): number { return this.mass * this.massMultiplier; }
 
+    // 力を加える（F=ma => a=F/m）
     applyForce(force: Vector2) {
         this.acc.x += force.x / this.getCurrentMass();
         this.acc.y += force.y / this.getCurrentMass();
@@ -360,12 +383,15 @@ class Entity {
     isStealthActive(): boolean { return this.stealthTimer > 0; }
     isInversionActive(): boolean { return this.inversionTimer > 0; }
     isCaptureActive(): boolean { return this.captureTimer > 0; }
+    
+    // 敵AIなどがターゲットとして認識できるか
     isTargetable(): boolean {
         if (this.isPlayer) return this.stealthTimer <= 0;
         return this.stealthOpacity > 0.1;
     }
 
     update(dt: number) {
+        // タイマー更新処理
         if (this.powerupTimer > 0) {
             this.powerupTimer -= dt;
             if (this.powerupTimer <= 0) { this.massMultiplier = 1.0; this.thrustMultiplier = 1.0; }
@@ -373,20 +399,20 @@ class Entity {
         if (this.inversionTimer > 0) this.inversionTimer -= dt;
         if (this.captureTimer > 0) this.captureTimer -= dt;
         
-        // Repulsive Trail Logic
+        // 斥力トレイル処理
         if (this.repulsiveTrailTimer > 0) {
             this.repulsiveTrailTimer -= dt;
             if (this.repulsiveTrailTimer <= 0) {
+                // 効果終了時、全軌跡の斥力フラグを解除し、軌跡長さを通常に戻す
                 this.repulsiveTrailTimer = 0;
-                // Clear repulsive flag from all trail segments upon expiry
                 this.trail.forEach(p => p.isRepulsive = false);
-                // Reduce trail length immediately to avoid lingering long trail
                 if (this.trail.length > TRAIL_LENGTH) {
                     this.trail = this.trail.slice(this.trail.length - TRAIL_LENGTH);
                 }
             }
         }
 
+        // 透明化処理（フェードイン・アウト）
         if (this.stealthTimer > 0) {
             this.stealthTimer -= dt;
             const elapsed = STEALTH_TOTAL_DURATION - this.stealthTimer;
@@ -398,37 +424,37 @@ class Entity {
             }
             if (this.stealthTimer <= 0) { this.stealthOpacity = 1.0; this.stealthTimer = 0; }
         } else { this.stealthOpacity = 1.0; }
+        
+        // 重力波によるノックバック適用
         if (this.waveForceTimer > 0) { this.applyForce(this.waveForce); this.waveForceTimer -= dt; }
         
-        // Apply acceleration
+        // 速度の更新
         this.vel.x += this.acc.x * dt; 
         this.vel.y += this.acc.y * dt;
         
-        // Apply friction
+        // 摩擦（空気抵抗的な減速）
         const speed = this.vel.length();
         if (speed > 0) {
             const frictionForceMagnitude = FRICTION * Math.pow(speed, FRICTION_VEL_EXP);
             const frictionAccMagnitude = frictionForceMagnitude / this.getCurrentMass();
             const frictionDecel = frictionAccMagnitude * dt;
             
-            // Prevent reversing direction due to discrete time step
             if (frictionDecel >= speed) {
-                this.vel.x = 0;
-                this.vel.y = 0;
+                this.vel.x = 0; this.vel.y = 0;
             } else {
                 const factor = (speed - frictionDecel) / speed;
-                this.vel.x *= factor;
-                this.vel.y *= factor;
+                this.vel.x *= factor; this.vel.y *= factor;
             }
         }
 
-        // Apply velocity
+        // 位置の更新
         this.pos.x += this.vel.x * dt; 
         this.pos.y += this.vel.y * dt;
         
+        // 加速度のリセット
         this.acc.x = 0; this.acc.y = 0;
         
-        // Trail management
+        // 軌跡の更新
         const maxLen = this.repulsiveTrailTimer > 0 ? TRAIL_LENGTH_EXTENDED : this.isSatellite ? SATELLITE_TRAIL_LENGTH : TRAIL_LENGTH;
         if (this.trail.length > maxLen) this.trail.shift();
         this.trail.push({ 
@@ -624,35 +650,68 @@ class Entity {
     }
 }
 
+// ゲームエンジンクラス：ゲーム全体の進行管理
 export class GameEngine {
-    canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; audio: AudioManager;
-    width: number = 0; height: number = 0; logicalWidth: number = 0; logicalHeight: number = 0; logicalArea: number = 0; scaleFactor: number = 1; dpr: number = 1;
-    entities: Entity[] = []; particles: Particle[] = []; items: Item[] = []; gravityWaves: GravityWave[] = []; visualWaves: VisualWave[] = [];
-    gameState: GameState = GameState.MENU; gameMode: GameMode = GameMode.SURVIVAL;
+    canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D;
+    // 画面サイズ関連
+    width: number = 0; height: number = 0; 
+    logicalWidth: number = 0; logicalHeight: number = 0; // 論理座標系（解像度に依存しない座標）
+    logicalArea: number = 0;
+    scaleFactor: number = 1; dpr: number = 1;
+    
+    // ゲームオブジェクト
+    entities: Entity[] = []; 
+    particles: Particle[] = []; 
+    items: Item[] = []; 
+    gravityWaves: GravityWave[] = []; 
+    visualWaves: VisualWave[] = [];
+    
+    // 状態管理
+    gameState: GameState = GameState.MENU; 
+    gameMode: GameMode = GameMode.SURVIVAL;
+    currentDifficulty: Difficulty = Difficulty.NORMAL; // 現在の難易度
     input: InputState = { up: false, down: false, left: false, right: false };
+    
+    // ループ管理
     lastTime: number = 0; animationId: number = 0; startTime: number = 0;
-    initialEnemyCount: number = ENEMY_NUMBER_SURVIVAL; maxSpeedRecorded: number = 0; maxGravityRecorded: number = 0; killCount: number = 0;
-    onStateChange: (state: GameState) => void; onStatsUpdate?: (stats: GameStats) => void;
-    frameCount: number = 0; isLoopRunning: boolean = false; spawnWarnings: SpawnWarning[] = [];
-    shakeIntensity: number = 0; shakeDecay: number = 0.9; flashOpacity: number = 0; flashColor: string = '#FFFFFF';
-    private itemSpawnTimer: number = ITEM_SPAWN_START_DELAY;
-    private resizeHandler = () => this.resize();
+    
+    // 統計・スコア
+    initialEnemyCount: number = DEFAULT_ENEMY_NUMBER_SURVIVAL; 
+    maxSpeedRecorded: number = 0; maxGravityRecorded: number = 0; killCount: number = 0;
+    
+    // 現在の難易度設定値
+    currentGravityConstant: number = DEFAULT_GRAVITY_CONSTANT;
+    currentCpuThrust: number = DEFAULT_CPU_THRUST_FORCE;
 
-    // Tutorial state
+    // コールバック
+    onStateChange: (state: GameState) => void; 
+    onStatsUpdate?: (stats: GameStats) => void;
+    
+    frameCount: number = 0; isLoopRunning: boolean = false; 
+    spawnWarnings: SpawnWarning[] = []; // 出現予告マーカー
+    
+    // 画面効果
+    shakeIntensity: number = 0; shakeDecay: number = 0.9; 
+    flashOpacity: number = 0; flashColor: string = '#FFFFFF';
+    private itemSpawnTimer: number = ITEM_SPAWN_START_DELAY;
+    
+    // チュートリアル状態
     tutorialStep: number = 0;
     tutorialTimer: number = 0;
     tutorial_step_show: string = "";
     tutorialMessage: string = "";
     tutorialObjectiveMet: boolean = false;
 
+    private resizeHandler = () => this.resize();
+
     constructor(canvas: HTMLCanvasElement, onStateChange: (state: GameState) => void, onStatsUpdate?: (stats: GameStats) => void) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
         this.onStateChange = onStateChange; this.onStatsUpdate = onStatsUpdate;
-        this.audio = AudioManager.getInstance();
         setTimeout(() => { this.resize(); window.addEventListener('resize', this.resizeHandler); }, 100);
     }
 
+    // 画面サイズに合わせて論理座標系をスケーリング
     resize() {
         const parent = this.canvas.parentElement;
         if (parent) {
@@ -670,26 +729,57 @@ export class GameEngine {
         }
     }
 
-    async start(mode: GameMode = GameMode.SURVIVAL) {
-        await this.audio.resume(); this.audio.playStart(); this.resize(); this.gameMode = mode;
+    // ゲーム開始処理
+    async start(mode: GameMode = GameMode.SURVIVAL, difficulty: Difficulty = Difficulty.NORMAL) {
+        this.resize(); 
+        this.gameMode = mode;
+        this.currentDifficulty = difficulty;
+
+        // 難易度設定の適用
+        if (mode === GameMode.TUTORIAL) {
+            this.currentDifficulty = Difficulty.EASY; // チュートリアルはEASY固定
+            this.currentGravityConstant = 35000.0;
+            this.currentCpuThrust = 1000.0;
+            // 敵の数はチュートリアルの進行管理で制御されるためここでは設定しない
+        } else {
+            switch (difficulty) {
+                case Difficulty.EASY:
+                    this.currentGravityConstant = 35000.0;
+                    this.currentCpuThrust = 1200.0;
+                    this.initialEnemyCount = 5;
+                    break;
+                case Difficulty.NORMAL:
+                    this.currentGravityConstant = 40000.0;
+                    this.currentCpuThrust = 1800.0;
+                    this.initialEnemyCount = 10;
+                    break;
+                case Difficulty.HARD:
+                    this.currentGravityConstant = 60000.0;
+                    this.currentCpuThrust = 2800.0;
+                    this.initialEnemyCount = 15;
+                    break;
+            }
+        }
+
+        // 初期化
         this.entities = []; this.particles = []; this.spawnWarnings = []; this.items = []; this.gravityWaves = []; this.visualWaves = [];
         this.shakeIntensity = 0; this.flashOpacity = 0; 
         
         // 1秒遅延して開始するための調整
         this.startTime = Date.now() + 1000; 
-        
         this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.frameCount = 0;
         this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
         
+        // プレイヤーと敵のスポーン設定
         const safeMarginX = this.logicalWidth * 0.15;
         const safeMarginY = this.logicalHeight * 0.15;
-
         const playerX = this.logicalWidth / 2; 
         const playerY = this.logicalHeight / 2;
         
         // プレイヤー出現予告 (1.0秒後に出現)
         this.spawnWarnings.push({ x: playerX, y: playerY, timer: 1.0, isPlayer: true });
         
+        // モードごとの初期配置
         if (mode === GameMode.TUTORIAL) {
             this.tutorialStep = 0;
             this.tutorialTimer = 0;
@@ -697,18 +787,30 @@ export class GameEngine {
             this.tutorial_step_show = "";
             this.tutorialMessage = "初期化中...";
         } else {
-            this.initialEnemyCount = mode === GameMode.SURVIVAL ? ENEMY_NUMBER_SURVIVAL : ENEMY_NUMBER_ENDLESS;
+            // 通常モードの敵配置（プレイヤーから一定距離離す）
+            // エンドレスモードでも難易度に基づいて初期敵数を調整（NORMAL以上は5で固定、EASYは少なめに）
+            const spawnCount = mode === GameMode.ENDLESS ? (difficulty === Difficulty.EASY ? 3 : difficulty === Difficulty.NORMAL ? 5 : 7) : this.initialEnemyCount;
+            this.initialEnemyCount = spawnCount; // 統計用に保存
+
             const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
             
-            for (let i = 0; i < this.initialEnemyCount; i++) {
-                let x = 0, y = 0, attempts = 0, validPosition = false;
-                while (!validPosition && attempts < 20) {
-                    x = Math.random() * (this.logicalWidth - safeMarginX * 2) + safeMarginX;
-                    y = Math.random() * (this.logicalHeight - safeMarginY * 2) + safeMarginY;
-                    
-                    const distSq = Math.pow(x - playerX, 2) + Math.pow(y - playerY, 2);
-                    if (distSq >= SAFE_DISTANCE_SQ) validPosition = true;
-                    attempts++;
+            for (let i = 0; i < spawnCount; i++) {
+                let x = 0;
+                let y = 0;
+                let valid = false;
+                for (let attempt = 0; attempt < 20; attempt++) {
+                    x = Math.random() * this.logicalWidth;
+                    y = Math.random() * this.logicalHeight;
+                    const dx = x - playerX;
+                    const dy = y - playerY;
+                    if (dx * dx + dy * dy > SAFE_DISTANCE_SQ) {
+                        valid = true;
+                        break;
+                    }
+                }
+                if (!valid) { // フォールバック
+                    x = (Math.random() < 0.5 ? 0 : this.logicalWidth);
+                    y = Math.random() * this.logicalHeight;
                 }
                 this.spawnWarnings.push({ x, y, timer: 1.0, isPlayer: false });
             }
@@ -718,24 +820,23 @@ export class GameEngine {
         if (!this.isLoopRunning) this.loop(this.lastTime);
     }
 
+    // ゲーム状態の変更とイベント発火
     setGameState(state: GameState) {
         const prevState = this.gameState; this.gameState = state; this.onStateChange(state);
         
-        // 再開時に前回のタイムスタンプを使用すると巨大なdtが発生するため、現在時刻にリセットする
         if (state === GameState.PLAYING && prevState === GameState.PAUSED) {
-            this.lastTime = performance.now();
+            this.lastTime = performance.now(); // タイムスタンプリセット
         }
 
         if (state === GameState.GAME_OVER && prevState === GameState.PLAYING) {
-            this.audio.playGameOver(); this.audio.setThrust(0);
-            this.shakeIntensity = 40; this.shakeDecay = 0.92; this.flashOpacity = 0.8; this.flashColor = '#FF0000';
+            this.shakeIntensity = 40; this.flashOpacity = 0.8; this.flashColor = '#FF0000';
         } else if (state === GameState.VICTORY && prevState === GameState.PLAYING) {
-            this.audio.playVictory(); this.audio.setThrust(0);
-            this.shakeIntensity = 20; this.shakeDecay = 0.96; this.flashOpacity = 0.5; this.flashColor = '#00FFFF';
+            this.shakeIntensity = 20; this.flashOpacity = 0.5; this.flashColor = '#00FFFF';
             this.triggerVictoryBurst();
         }
     }
     
+    // 一時停止切り替え
     togglePause() {
         if (this.gameState === GameState.PLAYING) {
             this.setGameState(GameState.PAUSED);
@@ -744,6 +845,7 @@ export class GameEngine {
         }
     }
 
+    // 勝利時の演出
     triggerVictoryBurst() {
         const player = this.entities.find(e => e.isPlayer); if (!player) return;
         for (let i = 0; i < 500; i++) {
@@ -754,8 +856,8 @@ export class GameEngine {
         }
     }
 
+    // エンティティ消滅時の演出
     triggerEliminationEffect(entity: Entity) {
-        this.audio.playExplosion();
         const count = entity.isPlayer ? 500 : (entity.isSatellite ? 50 : 600);
         const intensity = entity.isPlayer ? 60 : (entity.isSatellite ? 10 : 40);
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
@@ -770,6 +872,7 @@ export class GameEngine {
 
     handleInput(input: InputState) { this.input = input; }
 
+    // 排気パーティクルの生成
     spawnExhaust(entity: Entity, direction: Vector2, thrustMagnitude: number = 1.0) {
         if (this.particles.length > 3000 || entity.stealthOpacity < 0.2) return;
         const normDir = direction.normalize(); const offset = normDir.scale(-entity.radius);
@@ -779,6 +882,7 @@ export class GameEngine {
         this.particles.push(new Particle(entity.pos.x + offset.x, entity.pos.y + offset.y, particleVel, color));
     }
     
+    // 強奪スキル使用時の吸い込みエフェクト
     spawnCaptureStreamParticle(from: Entity, to: Entity, color: string) {
         const angle = Math.random() * Math.PI * 2;
         const dist = from.radius + 5 + Math.random() * 20;
@@ -798,6 +902,7 @@ export class GameEngine {
         }
     }
     
+    // 能力強奪成功時のエフェクト
     spawnTransferParticles(from: Entity, to: Entity, color: string) {
         const count = 10;
         for (let i = 0; i < count; i++) {
@@ -812,8 +917,10 @@ export class GameEngine {
         }
     }
 
+    // 敵AIの更新処理
     updateCpu(cpu: Entity) {
         if (!cpu.isCpu) return;
+        // 最も近いターゲットを探す
         let closestEntity = null, minDistanceSq = Infinity;
         for (const entity of this.entities) {
             if (entity === cpu || entity.owner === cpu || !entity.isTargetable()) continue; 
@@ -851,8 +958,9 @@ export class GameEngine {
         }
 
         if (thrustDirection.length() > 0) {
-            let fx = thrustDirection.x * CPU_THRUST_FORCE * cpu.thrustMultiplier; 
-            let fy = thrustDirection.y * CPU_THRUST_FORCE * cpu.thrustMultiplier;
+            // 難易度に基づいた推力を使用
+            let fx = thrustDirection.x * this.currentCpuThrust * cpu.thrustMultiplier; 
+            let fy = thrustDirection.y * this.currentCpuThrust * cpu.thrustMultiplier;
             if (cpu.vel.x * thrustDirection.x < 0) fx *= (BREAKING_CONSTANT + cpu.breakingValue);
             if (cpu.vel.y * thrustDirection.y < 0) fy *= (BREAKING_CONSTANT + cpu.breakingValue);
             cpu.applyForce(new Vector2(fx, fy));
@@ -860,6 +968,7 @@ export class GameEngine {
         }
     }
 
+    // 衛星の更新処理（親に追従し、敵へ突撃）
     updateSatellite(sat: Entity) {
         if (!sat.isSatellite || !sat.owner) return;
         let closestEnemy = null, minDistanceSq = Infinity;
@@ -878,6 +987,7 @@ export class GameEngine {
         }
     }
 
+    // チュートリアルシナリオの進行
     updateTutorial(dt: number) {
         const player = this.entities.find(e => e.isPlayer);
         
@@ -890,7 +1000,6 @@ export class GameEngine {
                 if (this.tutorialTimer > 1.0) {
                     this.tutorialStep = 1;
                     this.tutorialTimer = 0;
-                    this.audio.playUiClick(); // Step completion sound (using click for now)
                     
                     // 敵をスポーン
                     const x = this.logicalWidth / 1.3;
@@ -917,7 +1026,6 @@ export class GameEngine {
                 this.tutorialTimer -= dt;
                 if (this.tutorialTimer <= 0) {
                     this.tutorialStep = 2;
-                    this.audio.playUiClick();
                     
                     // アイテムと敵をスポーン
                     const cx = this.logicalWidth / 1.3;
@@ -939,7 +1047,6 @@ export class GameEngine {
                 // 敵を倒した（アイテムを取ったかどうかは問わずクリア扱いにするが、文脈的には取ってほしい）
                 this.tutorialStep = 3;
                 this.tutorialTimer = 2.0; // Victory delay
-                this.audio.playVictory();
             }
         }
         // 完了
@@ -952,15 +1059,19 @@ export class GameEngine {
         }
     }
 
+    // メイン更新ループ：物理演算、衝突判定など
     update(dt: number) {
+        // 画面揺れ・フラッシュの減衰
         if (this.shakeIntensity > 0.1) this.shakeIntensity *= this.shakeDecay; else this.shakeIntensity = 0;
         if (this.flashOpacity > 0.01) this.flashOpacity *= 0.9; else this.flashOpacity = 0;
+        
+        // パーティクル更新
         for (let i = this.particles.length - 1; i >= 0; i--) {
             this.particles[i].update(dt);
             if (this.particles[i].life <= 0) { this.particles[i] = this.particles[this.particles.length - 1]; this.particles.pop(); }
         }
         
-        // SpawnWarning処理
+        // 出現警告タイマー更新 -> エンティティ実体化
         for (let i = this.spawnWarnings.length - 1; i >= 0; i--) {
             this.spawnWarnings[i].timer -= dt;
             if (this.spawnWarnings[i].timer <= 0) { 
@@ -977,6 +1088,7 @@ export class GameEngine {
             }
         }
 
+        // アイテム更新と取得判定
         for (let i = this.items.length - 1; i >= 0; i--) this.items[i].update(dt);
         for (let i = this.gravityWaves.length - 1; i >= 0; i--) {
             this.gravityWaves[i].update(dt, this.entities);
@@ -987,19 +1099,18 @@ export class GameEngine {
             if (this.visualWaves[i].life <= 0) this.visualWaves.splice(i, 1);
         }
         
-        // PAUSE時は物理演算スキップ
+        // PAUSE時はここで物理演算停止
         if (this.gameState === GameState.PAUSED) {
-            this.audio.setThrust(0);
             return;
         }
-        
         if (this.gameState !== GameState.PLAYING) return;
         
-        // チュートリアルの進行管理
+        // チュートリアル更新
         if (this.gameMode === GameMode.TUTORIAL) {
             this.updateTutorial(dt);
         }
 
+        // アイテムスポーン管理
         this.itemSpawnTimer -= dt;
         if (this.gameMode !== GameMode.TUTORIAL && this.itemSpawnTimer <= 0) {
             const x = Math.random() * (this.logicalWidth - 100) + 50; const y = Math.random() * (this.logicalHeight - 100) + 50;
@@ -1042,7 +1153,7 @@ export class GameEngine {
                         entity.captureTimer = CAPTURE_DURATION;
                     }
 
-                    this.audio.playVictory(); this.flashOpacity = entity.isPlayer ? 0.4 : 0.2;
+                    this.flashOpacity = entity.isPlayer ? 0.4 : 0.2;
                     let fColor = COLOR_ITEM_MASS;
                     if (item.type === ItemType.SATELLITE) fColor = COLOR_ITEM_SATELLITE;
                     else if (item.type === ItemType.INVISIBILITY) fColor = COLOR_ITEM_STEALTH;
@@ -1063,7 +1174,7 @@ export class GameEngine {
             if (itemConsumed) this.items.splice(i, 1);
         }
         
-        // Capture Logic: Steal buffs
+        // 強奪（Capture）ロジック：範囲内の敵からバフを吸い取る
         for (const capturer of this.entities) {
             if (capturer.captureTimer <= 0) {
                 if (capturer.captureProgress.size > 0) capturer.captureProgress.clear();
@@ -1098,7 +1209,7 @@ export class GameEngine {
 
                         // Particle Effect (Suction)
                         // 量を増やす: 1フレームに2個生成して密度を上げる
-                        for (let i = 0; i < 40; i++) {
+                        for (let i = 0; i < 2; i++) {
                              const color = buffs[Math.floor(Math.random() * buffs.length)];
                              this.spawnCaptureStreamParticle(victim, capturer, color);
                         }
@@ -1157,7 +1268,6 @@ export class GameEngine {
                             }
                             
                             if (stoleSomething) {
-                                this.audio.playUiHover(); // Little sound for stealing
                                 // Reset progress for this victim to prevent multi-triggering in same frame (logic mostly handled by victim losing buff)
                                 capturer.captureProgress.set(victim, 0); 
                             }
@@ -1174,6 +1284,7 @@ export class GameEngine {
             }
         }
         
+        // プレイヤーの入力処理と物理力適用
         const player = this.entities.find(e => e.isPlayer);
         let playerTotalGravityForce = 0, minDangerDist = Infinity;
         if (player) {
@@ -1184,7 +1295,6 @@ export class GameEngine {
                 if (this.input.left) tx -= 1; if (this.input.right) tx += 1; if (this.input.up) ty -= 1; if (this.input.down) ty += 1;
                 magnitude = (tx !== 0 || ty !== 0) ? 1.0 : 0;
             }
-            this.audio.setThrust(magnitude);
             if (player.pos.x < WALL_MARGIN || player.pos.x > this.logicalWidth - WALL_MARGIN) {
                 const dist = Math.min(player.pos.x, this.logicalWidth - player.pos.x);
                 player.breakingValue = (WALL_MARGIN - dist) / BREAK_BOOST; minDangerDist = Math.min(minDangerDist, dist);
@@ -1202,18 +1312,22 @@ export class GameEngine {
                 for(let i = 0; i < Math.floor(Math.min(magnitude, 1) * 3); i++) this.spawnExhaust(player, new Vector2(nx, ny), magnitude);
             }
         }
+        
+        // エンティティの更新（AI等）
         this.entities.forEach(e => { 
             if (e.isCpu) this.updateCpu(e); if (e.isSatellite) this.updateSatellite(e);
+            // 重力波チャージ処理
             if (e.waveChargeCount > 0) {
                 e.waveChargeTimer -= dt;
                 if (e.waveChargeTimer <= 0) {
-                    this.gravityWaves.push(new GravityWave(e.pos.x, e.pos.y, e)); this.audio.playExplosion(); 
+                    this.gravityWaves.push(new GravityWave(e.pos.x, e.pos.y, e)); 
                     e.waveChargeCount--; e.waveChargeTimer = WAVE_INTERVAL;
                 }
             }
         });
         
-        // Repulsive Trail Collision Detection
+        // 斥力トレイル（Repulsive Trail）の衝突判定
+        // 線分と円の衝突判定を行い、反射ベクトルを計算
         for (const entity of this.entities) {
             if (entity.isStealthActive()) continue; // Stealth check for repulsive trail
 
@@ -1307,6 +1421,7 @@ export class GameEngine {
             }
         }
 
+        // 万有引力（重力）計算：全対全の相互作用 O(N^2)
         for (let i = 0; i < this.entities.length; i++) {
             for (let j = i + 1; j < this.entities.length; j++) {
                 const A = this.entities[i], B = this.entities[j];
@@ -1314,7 +1429,8 @@ export class GameEngine {
                 if (A.isSatellite && B.isSatellite) continue;
                 const dx = B.pos.x - A.pos.x; const dy = B.pos.y - A.pos.y; const distSq = dx * dx + dy * dy;
                 if (distSq > 0) {
-                    const forceMag = Math.min(GRAVITY_CONSTANT * (A.getCurrentMass() * B.getCurrentMass()) / (distSq ** DIST_EXP) , GRAVITY_MAX);
+                    // 難易度に基づいた重力定数を使用
+                    const forceMag = Math.min(this.currentGravityConstant * (A.getCurrentMass() * B.getCurrentMass()) / (distSq ** DIST_EXP) , GRAVITY_MAX);
                     const dist = Math.sqrt(distSq); const fx = (dx / dist) * forceMag; const fy = (dy / dist) * forceMag;
                     let fOnA = new Vector2(fx, fy); let fOnB = new Vector2(-fx, -fy);
                     const aInv = A.isInversionActive(); const bInv = B.isInversionActive();
@@ -1335,25 +1451,33 @@ export class GameEngine {
                 }
             }
         }
+        
+        // エンティティの位置更新
         this.entities.forEach(e => e.update(dt));
+        
+        // 画面外判定（脱落処理）
         for (let i = this.entities.length - 1; i >= 0; i--) {
             const e = this.entities[i];
             if (e.pos.x < 0 || e.pos.x > this.logicalWidth || e.pos.y < 0 || e.pos.y > this.logicalHeight) {
                 this.triggerEliminationEffect(e);
                 if (e.isPlayer) {
+                    // プレイヤー死亡
                     if (this.gameMode === GameMode.TUTORIAL) {
-                        // チュートリアル中のリスポーン
+                        // チュートリアルなら復活
                         this.spawnWarnings.push({ x: this.logicalWidth / 2, y: this.logicalHeight / 2, timer: 1.0, isPlayer: true });
                     } else {
                         this.setGameState(GameState.GAME_OVER);
                     }
                 } else { 
+                    // 敵死亡
                     if (!e.isSatellite) this.killCount++; 
                     if (this.gameMode === GameMode.ENDLESS && !e.isSatellite) this.requestSpawnEnemy(); 
                 }
                 this.entities.splice(i, 1);
             }
         }
+        
+        // 勝利判定
         if (player) {
             if (player.vel.length() > this.maxSpeedRecorded) this.maxSpeedRecorded = player.vel.length();
             if (playerTotalGravityForce > this.maxGravityRecorded) this.maxGravityRecorded = playerTotalGravityForce;
@@ -1364,6 +1488,7 @@ export class GameEngine {
         if (this.onStatsUpdate && player && this.frameCount % 5 === 0) {
              this.onStatsUpdate({ 
                  mode: this.gameMode, 
+                 difficulty: this.currentDifficulty,
                  speed: player.vel.length(), 
                  gravityForce: playerTotalGravityForce, 
                  maxSpeed: this.maxSpeedRecorded, 
@@ -1379,7 +1504,9 @@ export class GameEngine {
         }
     }
 
+    // 敵のリスポーンリクエスト（エンドレスモード用）
     requestSpawnEnemy() {
+        // プレイヤーから安全な距離にスポーン位置を探す
         let x = 0, y = 0, attempts = 0, valid = false; const player = this.entities.find(e => e.isPlayer);
         const SPAWN_PADDING = 50; // 安全マージン
         while (!valid && attempts < 20) {
@@ -1391,22 +1518,40 @@ export class GameEngine {
         this.spawnWarnings.push({ x, y, timer: 2.0, isPlayer: false });
     }
 
+    // 描画処理
     draw() {
         if (!this.width || !this.height) return;
-        this.ctx.clearRect(0, 0, this.width, this.height); this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
+        // 画面クリア
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // 座標変換（論理座標系へのスケール、画面揺れ適用）
         this.ctx.save();
-        if (this.shakeIntensity > 0) this.ctx.translate((Math.random() - 0.5) * this.shakeIntensity, (Math.random() - 0.5) * this.shakeIntensity);
+        if (this.shakeIntensity > 0) {
+            const dx = (Math.random() - 0.5) * this.shakeIntensity;
+            const dy = (Math.random() - 0.5) * this.shakeIntensity;
+            this.ctx.translate(dx, dy);
+        }
         this.ctx.scale(this.scaleFactor, this.scaleFactor);
-        this.drawGrid(); this.drawBoundaries(); this.drawGravityLines(); this.drawSpawnWarnings();
+        
+        // 各要素の描画
+        this.drawGrid(); 
+        this.drawBoundaries(); 
+        this.drawGravityLines(this.ctx, this.scaleFactor); 
+        this.drawSpawnWarnings();
+        // アイテム、波、パーティクル、エンティティ
         this.items.forEach(item => item.draw(this.ctx, this.scaleFactor));
         this.gravityWaves.forEach(wave => wave.draw(this.ctx, this.scaleFactor));
         this.visualWaves.forEach(wave => wave.draw(this.ctx, this.scaleFactor));
         this.ctx.globalCompositeOperation = 'lighter';
         this.particles.forEach(p => p.draw(this.ctx, this.scaleFactor)); this.entities.forEach(e => e.draw(this.ctx, this.scaleFactor));
+        
         this.ctx.restore();
+        // フラッシュエフェクト（全画面）
         if (this.flashOpacity > 0) { this.ctx.save(); this.ctx.globalAlpha = this.flashOpacity; this.ctx.fillStyle = this.flashColor; this.ctx.fillRect(0, 0, this.width, this.height); this.ctx.restore(); }
     }
 
+    // 出現予告マーカーの描画
     drawSpawnWarnings() {
         this.spawnWarnings.forEach(w => {
             const alpha = (Math.sin(Date.now() / 50) + 1) / 2 * 0.6;
@@ -1433,6 +1578,7 @@ export class GameEngine {
         });
     }
 
+    // 外枠（デスライン）の描画
     drawBoundaries() {
         const borderWidth = 20; const isGameOver = this.gameState === GameState.GAME_OVER;
         const player = this.entities.find(e => e.isPlayer);
@@ -1447,6 +1593,7 @@ export class GameEngine {
         drawCorner(0, 0, 1, 1); drawCorner(this.logicalWidth, 0, -1, 1); drawCorner(this.logicalWidth, this.logicalHeight, -1, -1); drawCorner(0, this.logicalHeight, 1, -1);
     }
 
+    // 背景グリッドの描画（移動しているように見せるアニメーション含む）
     drawGrid() {
         const step = 70; const isGameOver = this.gameState === GameState.GAME_OVER;
         const player = this.entities.find(e => e.isPlayer);
@@ -1459,8 +1606,11 @@ export class GameEngine {
         this.ctx.stroke();
     }
 
-    drawGravityLines() {
-        this.ctx.lineWidth = G_LINE_WIDTH / this.scaleFactor;
+    // 重力結合線（エンティティ間の線）の描画
+    // 距離が近いほど、または質量が大きいほど太く濃く描画
+    drawGravityLines(ctx: CanvasRenderingContext2D, scaleFactor: number) {
+        ctx.save();
+        
         for (let i = 0; i < this.entities.length; i++) {
             for (let j = i + 1; j < this.entities.length; j++) {
                 const A = this.entities[i], B = this.entities[j];
@@ -1484,14 +1634,22 @@ export class GameEngine {
                 }
             }
         }
+        ctx.restore();
     }
 
+    // ゲームループ
     loop(timestamp: number) {
         if (!this.isLoopRunning) this.isLoopRunning = true;
+        // デルタタイム計算（最大0.1秒に制限して不安定化を防ぐ）
         const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1); 
-        this.lastTime = timestamp; this.update(dt); this.draw();
+        this.lastTime = timestamp; 
+        
+        this.update(dt); 
+        this.draw();
+        
         this.animationId = requestAnimationFrame((t) => this.loop(t));
     }
 
+    // ゲーム停止・破棄
     stop() { cancelAnimationFrame(this.animationId); this.isLoopRunning = false; window.removeEventListener('resize', this.resizeHandler); }
 }
