@@ -1,5 +1,5 @@
 import React from 'react';
-import { GameStats, GameMode } from '../types';
+import { GameStats, GameMode, Difficulty } from '../types';
 
 interface InfoPanelProps {
     stats: GameStats | null;
@@ -16,10 +16,16 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
     const initialEnemies = stats?.initialEnemies || 10;
     const time = stats?.timeSurvived || 0;
     const kills = stats?.kills || 0;
+    const difficulty = stats?.difficulty || Difficulty.NORMAL;
 
     // メーター表示の割合を計算 (0-100)
     const speedPercent = Math.min((speed / Math.max(800, maxSpeed)) * 100, 100);
     const gravityPercent = Math.min((gravity / Math.max(20000, maxGravity)) * 100, 100);
+
+    // 難易度ごとの色設定
+    let diffColorClass = "text-cyan-500/60";
+    if (difficulty === Difficulty.HARD) diffColorClass = "text-red-500/60";
+    else if (difficulty === Difficulty.EASY) diffColorClass = "text-emerald-500/60";
 
     return (
         <div className="w-full h-auto bg-transparent flex flex-col p-1 landscape:p-2 gap-1 landscape:gap-1.5 overflow-visible select-none relative">
@@ -124,7 +130,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
                     <div className="flex items-center landscape:items-end justify-between mb-0.5 landscape:mb-1">
                         <div className="flex flex-col text-left">
                             <span className="text-[10px] landscape:text-[14px] text-gray-200 font-bold leading-tight">生存時間</span>
-                            <span className="text-[8px] landscape:text-[10px] text-emerald-500/60 font-bold uppercase tracking-tighter animate-pulse">ACTIVE</span>
+                            <span className={`text-[8px] landscape:text-[10px] ${diffColorClass} font-bold uppercase tracking-tighter`}>{difficulty}</span>
                         </div>
                         <div className="flex items-baseline text-right">
                             <span className="text-lg landscape:text-2xl xl:text-4xl text-white font-fugaz leading-none">

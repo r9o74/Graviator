@@ -168,6 +168,20 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                         {/* タイトル表示 */}
                         <div className="mb-2 relative z-10">
                             <h1 className={`text-5xl md:text-6xl font-black tracking-tight ${colorClass} font-fugaz transition-colors duration-1000`}>{title}</h1>
+                            
+                            {/* 結果表示時の難易度表示 */}
+                            {(isGameOver || isVictory) && gameStats && (
+                                <div className="mb-1">
+                                    <span className={`inline-block py-0.5 px-3 rounded-full text-[10px] font-fugaz font-medium tracking-[0.2em] ${
+                                        gameStats.difficulty === Difficulty.HARD ? "text-red-400" :
+                                        gameStats.difficulty === Difficulty.EASY ? "text-emerald-400" :
+                                        "text-cyan-400"
+                                    }`}>
+                                        {gameStats.difficulty}
+                                    </span>
+                                </div>
+                            )}
+
                             <p className={`text-white/40 font-mono tracking-[0.4em] text-sm md:text-md uppercase mt-2`}>{subtitle}</p>
                         </div>
 
