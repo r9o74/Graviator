@@ -98,7 +98,12 @@ const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ（壁を作る�
 // 強奪 (Capture)
 const CAPTURE_DURATION = 8.0;
 const CAPTURE_RADIUS = 100.0;
-const CAPTURE_REQUIRED_TIME = 0.3; // 強奪完了に必要な継続時間
+// 各効果ごとの強奪所要時間
+const CAPTURE_TIME_MASS = 0.3;
+const CAPTURE_TIME_STEALTH = 0.6;
+const CAPTURE_TIME_INVERSION = 0.3;
+const CAPTURE_TIME_TRAIL = 0.3;
+const CAPTURE_TIME_WAVE = 0.05;
 
 
 // アイテムの種類定義
@@ -1193,15 +1198,19 @@ export class GameEngine {
                 const distSq = dx*dx + dy*dy;
                 
                 if (distSq < CAPTURE_RADIUS * CAPTURE_RADIUS) {
-                    // Check if victim has anything to steal
-                    const buffs: string[] = [];
-                    if (victim.powerupTimer > 0) buffs.push(COLOR_ITEM_MASS);
-                    if (victim.stealthTimer > 0) buffs.push(COLOR_ITEM_STEALTH);
-                    if (victim.inversionTimer > 0) buffs.push(COLOR_ITEM_INVERSION);
-                    if (victim.repulsiveTrailTimer > 0) buffs.push(COLOR_ITEM_REPULSIVE);
-                    if (victim.waveChargeCount > 0) buffs.push(COLOR_ITEM_WAVE);
+                    // 奪える候補をリストアップ
+                    const stealableItems: { type: string, time: number, color: string }[] = [];
+                    
+                    if (victim.powerupTimer > 0) stealableItems.push({ type: 'MASS', time: CAPTURE_TIME_MASS, color: COLOR_ITEM_MASS });
+                    if (victim.stealthTimer > 0) stealableItems.push({ type: 'STEALTH', time: CAPTURE_TIME_STEALTH, color: COLOR_ITEM_STEALTH });
+                    if (victim.inversionTimer > 0) stealableItems.push({ type: 'INVERSION', time: CAPTURE_TIME_INVERSION, color: COLOR_ITEM_INVERSION });
+                    if (victim.repulsiveTrailTimer > 0) stealableItems.push({ type: 'TRAIL', time: CAPTURE_TIME_TRAIL, color: COLOR_ITEM_REPULSIVE });
+                    if (victim.waveChargeCount > 0) stealableItems.push({ type: 'WAVE', time: CAPTURE_TIME_WAVE, color: COLOR_ITEM_WAVE });
 
-                    if (buffs.length > 0) {
+                    if (stealableItems.length > 0) {
+                        // 必要な時間が短い順にソート（奪いやすい順）
+                        stealableItems.sort((a, b) => a.time - b.time);
+
                         activeTargetsInFrame.add(victim);
                         const currentProgress = capturer.captureProgress.get(victim) || 0;
                         const nextProgress = currentProgress + dt;
@@ -1210,65 +1219,75 @@ export class GameEngine {
                         // Particle Effect (Suction)
                         // 量を増やす: 1フレームに2個生成して密度を上げる
                         for (let i = 0; i < 2; i++) {
-                             const color = buffs[Math.floor(Math.random() * buffs.length)];
-                             this.spawnCaptureStreamParticle(victim, capturer, color);
+                             // ランダムに選ばれた色のパーティクルを出す（視覚的には全て吸っているように）
+                             const targetItem = stealableItems[Math.floor(Math.random() * stealableItems.length)];
+                             this.spawnCaptureStreamParticle(victim, capturer, targetItem.color);
                         }
 
-                        if (nextProgress >= CAPTURE_REQUIRED_TIME) {
+                        // 最も奪いやすいアイテムの条件を満たしたか？
+                        const targetToSteal = stealableItems[0];
+
+                        if (nextProgress >= targetToSteal.time) {
                             let stoleSomething = false;
 
-                            // Steal Powerup
-                            if (victim.powerupTimer > 0) {
-                                capturer.powerupTimer = Math.max(capturer.powerupTimer, victim.powerupTimer);
-                                capturer.massMultiplier = MASS_BOOST_MULTIPLIER;
-                                capturer.thrustMultiplier = MASS_BOOST_MULTIPLIER;
-                                victim.powerupTimer = 0;
-                                victim.massMultiplier = 1.0;
-                                victim.thrustMultiplier = 1.0;
-                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_MASS);
-                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_MASS));
-                                stoleSomething = true;
-                            }
-                            // Steal Stealth
-                            if (victim.stealthTimer > 0) {
-                                capturer.stealthTimer = Math.max(capturer.stealthTimer, victim.stealthTimer);
-                                victim.stealthTimer = 0;
-                                victim.stealthOpacity = 1.0;
-                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_STEALTH);
-                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_STEALTH));
-                                stoleSomething = true;
-                            }
-                            // Steal Inversion
-                            if (victim.inversionTimer > 0) {
-                                capturer.inversionTimer = Math.max(capturer.inversionTimer, victim.inversionTimer);
-                                victim.inversionTimer = 0;
-                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_INVERSION);
-                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_INVERSION));
-                                stoleSomething = true;
-                            }
-                            // Steal Repulsive Trail
-                            if (victim.repulsiveTrailTimer > 0) {
-                                capturer.repulsiveTrailTimer = Math.max(capturer.repulsiveTrailTimer, victim.repulsiveTrailTimer);
-                                capturer.trail = []; // Reset capturer trail to be safe
-                                
-                                victim.repulsiveTrailTimer = 0;
-                                victim.trail.forEach(p => p.isRepulsive = false); // Clear victim trail effect
-                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_REPULSIVE);
-                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_REPULSIVE));
-                                stoleSomething = true;
-                            }
-                             // Steal Gravity Wave Charges
-                            if (victim.waveChargeCount > 0) {
-                                capturer.waveChargeCount += victim.waveChargeCount;
-                                capturer.waveChargeTimer = 0.01; // Trigger soon
-                                victim.waveChargeCount = 0;
-                                this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
-                                this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_WAVE));
-                                stoleSomething = true;
+                            switch (targetToSteal.type) {
+                                case 'MASS':
+                                    if (victim.powerupTimer > 0) {
+                                        capturer.powerupTimer = Math.max(capturer.powerupTimer, victim.powerupTimer);
+                                        capturer.massMultiplier = MASS_BOOST_MULTIPLIER;
+                                        capturer.thrustMultiplier = MASS_BOOST_MULTIPLIER;
+                                        victim.powerupTimer = 0;
+                                        victim.massMultiplier = 1.0;
+                                        victim.thrustMultiplier = 1.0;
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_MASS);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_MASS));
+                                        stoleSomething = true;
+                                    }
+                                    break;
+                                case 'STEALTH':
+                                    if (victim.stealthTimer > 0) {
+                                        capturer.stealthTimer = Math.max(capturer.stealthTimer, victim.stealthTimer);
+                                        victim.stealthTimer = 0;
+                                        victim.stealthOpacity = 1.0;
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_STEALTH);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_STEALTH));
+                                        stoleSomething = true;
+                                    }
+                                    break;
+                                case 'INVERSION':
+                                    if (victim.inversionTimer > 0) {
+                                        capturer.inversionTimer = Math.max(capturer.inversionTimer, victim.inversionTimer);
+                                        victim.inversionTimer = 0;
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_INVERSION);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_INVERSION));
+                                        stoleSomething = true;
+                                    }
+                                    break;
+                                case 'TRAIL':
+                                    if (victim.repulsiveTrailTimer > 0) {
+                                        capturer.repulsiveTrailTimer = Math.max(capturer.repulsiveTrailTimer, victim.repulsiveTrailTimer);
+                                        capturer.trail = []; 
+                                        
+                                        victim.repulsiveTrailTimer = 0;
+                                        victim.trail.forEach(p => p.isRepulsive = false); 
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_REPULSIVE);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_REPULSIVE));
+                                        stoleSomething = true;
+                                    }
+                                    break;
+                                case 'WAVE':
+                                    if (victim.waveChargeCount > 0) {
+                                        capturer.waveChargeCount += victim.waveChargeCount;
+                                        capturer.waveChargeTimer = 0.01; 
+                                        victim.waveChargeCount = 0;
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_WAVE));
+                                        stoleSomething = true;
+                                    }
+                                    break;
                             }
                             
                             if (stoleSomething) {
-                                // Reset progress for this victim to prevent multi-triggering in same frame (logic mostly handled by victim losing buff)
                                 capturer.captureProgress.set(victim, 0); 
                             }
                         }
