@@ -172,7 +172,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                             {/* 結果表示時の難易度表示 */}
                             {(isGameOver || isVictory || isPaused) && gameStats && (
                                 <div className="mb-1">
-                                    <span className={`inline-block py-0.5 px-3 rounded-full text-[10px] font-fugaz font-medium tracking-[0.2em] ${
+                                    <span className={`inline-block py-0.5 px-3 rounded-full text-[15px] font-fugaz font-medium tracking-[0.2em] ${
                                         gameStats.difficulty === Difficulty.HARD ? "text-red-400" :
                                         gameStats.difficulty === Difficulty.EASY ? "text-emerald-400" :
                                         "text-cyan-400"
@@ -224,7 +224,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
                             {/* 難易度選択 */}
                             {!isPaused && (
-                                <div className="flex gap-2 w-full mt-2 px-1">
+                                <div className="flex gap-1 w-full mt-2 px-1">
                                     {renderDifficultyButton(Difficulty.EASY)}
                                     {renderDifficultyButton(Difficulty.NORMAL)}
                                     {renderDifficultyButton(Difficulty.HARD)}

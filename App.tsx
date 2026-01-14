@@ -246,7 +246,7 @@ function App() {
                 {gameState === GameState.PLAYING && (
                     <button 
                         onClick={handlePauseToggle}
-                        className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-sm transition-all duration-300 group"
+                        className="absolute bottom-6 right-6 z-40 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-sm transition-all duration-300 group"
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-white/70 group-hover:text-white transition-colors">
                             <rect x="6" y="4" width="4" height="16" rx="1" strokeWidth="2" />
