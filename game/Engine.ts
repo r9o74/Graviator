@@ -1064,6 +1064,28 @@ export class GameEngine {
         }
     }
 
+    // 統計情報の送信
+    emitStats(currentGravityForce: number = 0) {
+        if (!this.onStatsUpdate) return;
+        const player = this.entities.find(e => e.isPlayer);
+        // プレイヤーがいなくても最後の記録を送信する
+        this.onStatsUpdate({ 
+             mode: this.gameMode, 
+             difficulty: this.currentDifficulty,
+             speed: player ? player.vel.length() : 0, 
+             gravityForce: currentGravityForce,
+             maxSpeed: this.maxSpeedRecorded, 
+             maxGravity: this.maxGravityRecorded, 
+             currentEnemies: this.entities.filter(e => e.isCpu).length, 
+             initialEnemies: this.initialEnemyCount, 
+             timeSurvived: (Date.now() - this.startTime) / 1000, 
+             dangerLevel: 0, 
+             kills: this.killCount,
+             tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined,
+             tutorial_step_show: this.gameMode === GameMode.TUTORIAL ? this.tutorial_step_show : undefined
+        });
+    }
+
     // メイン更新ループ：物理演算、衝突判定など
     update(dt: number) {
         // 画面揺れ・フラッシュの減衰
@@ -1485,6 +1507,8 @@ export class GameEngine {
                         // チュートリアルなら復活
                         this.spawnWarnings.push({ x: this.logicalWidth / 2, y: this.logicalHeight / 2, timer: 1.0, isPlayer: true });
                     } else {
+                        // ここで統計を更新してからゲームオーバーにする
+                        this.emitStats(); 
                         this.setGameState(GameState.GAME_OVER);
                     }
                 } else { 
@@ -1505,21 +1529,7 @@ export class GameEngine {
         if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING && this.spawnWarnings.length === 0) this.setGameState(GameState.VICTORY);
         this.frameCount++;
         if (this.onStatsUpdate && player && this.frameCount % 5 === 0) {
-             this.onStatsUpdate({ 
-                 mode: this.gameMode, 
-                 difficulty: this.currentDifficulty,
-                 speed: player.vel.length(), 
-                 gravityForce: playerTotalGravityForce, 
-                 maxSpeed: this.maxSpeedRecorded, 
-                 maxGravity: this.maxGravityRecorded, 
-                 currentEnemies: enemiesLeft, 
-                 initialEnemies: this.initialEnemyCount, 
-                 timeSurvived: (Date.now() - this.startTime) / 1000, 
-                 dangerLevel: Math.max(0, 100 - (minDangerDist / 200) * 100), 
-                 kills: this.killCount,
-                 tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined,
-                 tutorial_step_show: this.gameMode === GameMode.TUTORIAL ? this.tutorial_step_show : undefined
-             });
+             this.emitStats(playerTotalGravityForce);
         }
     }
 

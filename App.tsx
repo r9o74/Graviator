@@ -4,6 +4,7 @@ import { GameState, InputState, GameStats, GameMode, Difficulty } from './types.
 import MenuOverlay from './components/MenuOverlay.tsx';
 import InfoPanel from './components/InfoPanel.tsx';
 import VirtualJoystick from './components/VirtualJoystick.tsx';
+import { supabase } from './lib/supabase.ts';
 
 function App() {
     // Canvas要素への参照
@@ -16,6 +17,11 @@ function App() {
     const [gameStats, setGameStats] = useState<GameStats | null>(null);
     const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(Difficulty.NORMAL);
     const [showItemGuide, setShowItemGuide] = useState(false);
+    
+    // バックエンド接続状態
+    const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+    const [userId, setUserId] = useState<string | null>(null);
+    const [isScoreSaved, setIsScoreSaved] = useState(false);
     
     // 現在選択されているモードをステートとRefの両方で管理（イベントリスナー内での参照用）
     const [currentMode, setCurrentMode] = useState<GameMode>(GameMode.SURVIVAL);
@@ -35,6 +41,74 @@ function App() {
 
     const isMenu = gameState === GameState.MENU;
 
+    // Supabase接続と匿名ログイン
+    useEffect(() => {
+        const initAuth = async () => {
+            try {
+                // 既存のセッションを確認
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                if (sessionError) throw sessionError;
+
+                if (session) {
+                    console.log("Session restored. User ID:", session.user.id);
+                    setUserId(session.user.id);
+                    setDbStatus('connected');
+                } else {
+                    // セッションがなければ匿名ログインを試行
+                    console.log("Attemping anonymous sign-in...");
+                    const { data, error: signInError } = await supabase.auth.signInAnonymously();
+                    if (signInError) throw signInError;
+                    
+                    if (data && data.user) {
+                        console.log("Anonymous sign-in successful. User ID:", data.user.id);
+                        setUserId(data.user.id);
+                        setDbStatus('connected');
+                    } else {
+                        throw new Error("Sign-in succeeded but no user data returned");
+                    }
+                }
+            } catch (err) {
+                console.error("Authentication failed:", err);
+                setDbStatus('error');
+            }
+        };
+        initAuth();
+    }, []);
+
+    // スコア保存処理（ENDLESSモードでゲームオーバー時）
+    useEffect(() => {
+        if (gameState === GameState.GAME_OVER && currentModeRef.current === GameMode.ENDLESS && !isScoreSaved && gameStats && userId) {
+            const saveScore = async () => {
+                console.log("Saving score to leaderboard...", gameStats.kills);
+                try {
+                    // DB定義に合わせて修正
+                    // テーブル: leaderboard
+                    // カラム: user_id, score, player_name
+                    const { error } = await supabase
+                        .from('leaderboard')
+                        .insert([
+                            { 
+                                user_id: userId,
+                                score: gameStats.kills,
+                                player_name: `User-${userId.substring(0, 6)}` // 簡易的なプレイヤー名を生成
+                            }
+                        ]);
+                    
+                    if (error) {
+                        console.error("Score save error:", error);
+                    } else {
+                        console.log("Score saved successfully!");
+                    }
+                } catch (err) {
+                    console.error("Unexpected error saving score:", err);
+                }
+            };
+            
+            setIsScoreSaved(true);
+            saveScore();
+        }
+    }, [gameState, gameStats, userId, isScoreSaved]);
+
     // UIアニメーション完了後にCanvasサイズを再計算する処理
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -52,6 +126,7 @@ function App() {
         setCurrentMode(mode);
         currentModeRef.current = mode;
         setShowItemGuide(false);
+        setIsScoreSaved(false); // スコア保存フラグをリセット
 
         // 2. アニメーション完了を待ってからゲームループを開始
         setTimeout(() => {
@@ -213,6 +288,18 @@ function App() {
 
     return (
         <div className="relative w-screen h-screen bg-black overflow-hidden select-none flex flex-col landscape:flex-row">
+            {/* Supabase Connection Status Indicator (Dev only) - Only show on Menu */}
+            {isMenu && (
+                <div className={`absolute top-2 right-2 z-[110] px-3 py-1.5 rounded text-[10px] font-mono font-bold pointer-events-none transition-colors duration-500 flex flex-col items-end gap-0.5 ${
+                    dbStatus === 'connected' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
+                    dbStatus === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
+                    'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 animate-pulse'
+                }`}>
+                    <span>DB: {dbStatus.toUpperCase()}</span>
+                    {userId && <span className="text-[9px] opacity-80">ID: {userId}</span>}
+                </div>
+            )}
+
             {/* サイドバー (横画面時) */}
             <div className={`
                 hidden landscape:flex flex-col bg-[#080808] border-r border-white/10 shrink-0 relative z-30 shadow-[10px_0_30px_rgba(0,0,0,0.5)] h-full overflow-hidden
