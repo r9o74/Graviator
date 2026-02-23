@@ -4,17 +4,18 @@ import { ItemGuide } from './ItemGuide';
 
 interface MenuOverlayProps {
     gameState: GameState;
-    onStart: (mode: GameMode, difficulty: Difficulty) => void; // ゲーム開始コールバック
-    onHome: () => void;                 // ホームへ戻る
-    onResume: () => void;               // 再開
-    gameStats: GameStats | null;        // 結果表示用スタッツ
+    onStart: (mode: GameMode, difficulty: Difficulty) => void;
+    onHome: () => void;
+    onResume: () => void;
+    gameStats: GameStats | null;
     selectedDifficulty: Difficulty;
     setSelectedDifficulty: (diff: Difficulty) => void;
     showItemGuide: boolean;
     setShowItemGuide: (show: boolean) => void;
+    userId?: string | null;
+    dbStatus?: 'checking' | 'connected' | 'error' | 'offline';
 }
 
-// ゲーム状態に応じたオーバーレイ画面（メニュー、ポーズ、リザルト）を表示するコンポーネント
 const MenuOverlay: React.FC<MenuOverlayProps> = ({ 
     gameState, 
     onStart, 
@@ -24,11 +25,13 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     selectedDifficulty,
     setSelectedDifficulty,
     showItemGuide,
-    setShowItemGuide
+    setShowItemGuide,
+    userId,
+    dbStatus
 }) => {
-    const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 }); // 背景アニメーション用のマウス位置
+    const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
 
-    // 背景のアニメーション用にマウス位置を追跡
+    // 背景アニメーション用のマウス位置追跡
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             setMousePos({
@@ -40,23 +43,19 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
         return () => window.removeEventListener('mousemove', handleMouseMove);
     }, []);
 
-    // リザルト画面表示時に、前のゲームの難易度を同期
     useEffect(() => {
         if (gameStats?.difficulty && gameState !== GameState.PLAYING && gameState !== GameState.MENU) {
             setSelectedDifficulty(gameStats.difficulty);
         }
     }, [gameStats, gameState, setSelectedDifficulty]);
 
-    // プレイ中はオーバーレイを表示しない
     if (gameState === GameState.PLAYING) return null;
 
-    // 現在の状態判定
     const isGameOver = gameState === GameState.GAME_OVER;
     const isVictory = gameState === GameState.VICTORY;
     const isPaused = gameState === GameState.PAUSED;
     const isMenu = gameState === GameState.MENU;
     const currentMode = gameStats?.mode || GameMode.SURVIVAL;
-
 
     let title = "GRAVIATOR*";
     let subtitle = "";
@@ -65,9 +64,9 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
     if (isGameOver) {
         title = currentMode === GameMode.ENDLESS ? `${gameStats?.kills || 0} KILLS` : "FAILURE";
-        subtitle = currentMode === GameMode.ENDLESS ? "" : "SIGNAL LOST";
-        colorClass = currentMode === GameMode.ENDLESS ? "text-white-400" : "text-red-500 neon-text-shadow";
-        blobColor = "bg-red-600";
+        subtitle = "SIGNAL LOST";
+        colorClass = "text-white-500";
+        blobColor = "bg-white-600";
     } else if (isVictory) {
         title = "GAME CLEAR";
         subtitle = "YOU ARE THE LAST SURVIVOR!";
@@ -80,26 +79,6 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
         blobColor = "bg-amber-500";
     }
 
-    // 背景のぼかしや色味の設定
-    let wrapperClasses = "";
-    if (isMenu) {
-        wrapperClasses = "bg-[#050505] z-[100]";
-    } else if (isPaused) {
-        wrapperClasses = "bg-black/10 backdrop-blur-[2px] z-50"; // ポーズ時は薄く
-    } else {
-        wrapperClasses = "bg-black/20 backdrop-blur-sm z-50";
-    }
-
-    // ボタンクリックハンドラ
-    const handleButtonClick = async (action: () => void) => {
-        action();
-    };
-
-    const handleHover = () => {
-        // No audio
-    };
-
-    // 難易度ボタンのレンダリングヘルパー
     const renderDifficultyButton = (diff: Difficulty) => {
         const isSelected = selectedDifficulty === diff;
         let baseColorClass = "";
@@ -107,36 +86,45 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
         let blobBgClass = "";
 
         if (diff === Difficulty.EASY) {
-            baseColorClass = isSelected ? "text-emerald-400 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "text-white-400/40 border-transparent hover:text-emerald-400";
+            baseColorClass = isSelected ? "text-emerald-400 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "text-white/40 border-transparent hover:text-emerald-400";
             activeBgClass = isSelected ? "bg-emerald-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-emerald-500";
         } else if (diff === Difficulty.NORMAL) {
-            baseColorClass = isSelected ? "text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "text-white-400/40 border-transparent hover:text-cyan-400";
+            baseColorClass = isSelected ? "text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "text-white/40 border-transparent hover:text-cyan-400";
             activeBgClass = isSelected ? "bg-cyan-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-cyan-500";
         } else {
-            baseColorClass = isSelected ? "text-red-400 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "text-white-400/40 border-transparent hover:text-red-400";
+            baseColorClass = isSelected ? "text-red-400 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "text-white/40 border-transparent hover:text-red-400";
             activeBgClass = isSelected ? "bg-red-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-red-600";
         }
 
-        // ボーダーの太さを isSelected に応じて変更 (border-2 または border)
-        const borderWidthClass = "border-2";
-
         return (
             <button 
                 onClick={() => setSelectedDifficulty(diff)} 
-                className={`group relative flex-1 py-1 px-2 rounded-xl text-[10px] md:text-xs font-medium font-fugaz tracking-widest transition-all duration-300 overflow-hidden ${borderWidthClass} ${baseColorClass} ${activeBgClass}`}
+                className={`group relative flex-1 py-1 px-2 rounded-xl text-[10px] md:text-xs font-bold font-orbitron tracking-widest transition-all duration-300 overflow-hidden border-2 ${baseColorClass} ${activeBgClass}`}
             >
                 <span className='relative z-10'>{diff}</span>
-                {/* 液体アニメーション */}
                 <div className={`absolute inset-0 ${blobBgClass} opacity-0 group-hover:opacity-20 transform translate-y-full group-hover:translate-y-0 transition-all duration-500 ease-out`}></div>
             </button>
         );
     };
 
     return (
-        <div className={`absolute inset-0 flex items-center justify-center overflow-hidden transition-all duration-1000 ${wrapperClasses}`}>
+        <div className={`absolute inset-0 flex items-center justify-center overflow-hidden transition-all duration-1000 ${isMenu ? 'bg-[#050505]' : 'bg-black/20 backdrop-blur-sm'} z-[100]`}>
+            {/* DBステータス表示 (ホーム画面右上) */}
+            {isMenu && dbStatus && (
+                <div className="absolute top-4 right-4 md:top-6 md:right-6 flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl z-[110]">
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                        dbStatus === 'connected' ? 'bg-green-500' : 
+                        dbStatus === 'error' ? 'bg-red-500' : 'bg-gray-500'
+                    } ${dbStatus === 'checking' ? 'animate-pulse' : ''}`} />
+                    <span className="text-[10px] font-orbitron font-bold text-white/40 tracking-[0.1em] uppercase">
+                        DB: {dbStatus}
+                    </span>
+                </div>
+            )}
+
             {/* インタラクティブ背景（液体のblobアニメーション） */}
             <div className="absolute inset-0 pointer-events-none opacity-30 select-none">
                 <div 
@@ -156,104 +144,100 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                     66% { border-radius: 50% 40% 70% 40% / 40% 50% 30% 60%; transform: translate(-40px, 40px) scale(0.9) rotate(240deg); }
                 }
                 .liquid-glass { background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(50px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.7); position: relative; overflow: hidden; }
+                .menu-scroll-container::-webkit-scrollbar { width: 4px; }
+                .menu-scroll-container::-webkit-scrollbar-track { background: transparent; }
+                .menu-scroll-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
             `}</style>
 
-            {/* メインカード */}
-            <div className={`relative z-10 liquid-glass p-8 md:p-12 rounded-[48px] text-center items-center shadow-xl pointer-events-auto max-w-xl w-[95%] max-h-[90vh] transform transition-all duration-700 hover:border-white/20 ${isMenu ? 'translate-y-0' : 'translate-y-4'} ${showItemGuide ? 'h-[85vh] flex flex-col' : ''}`}>
-                
-                {showItemGuide ? (
-                    <ItemGuide onClose={() => { setShowItemGuide(false); }} />
-                ) : (
-                    <>
-                        {/* タイトル表示 */}
-                        <div className="mb-2 relative z-10">
-                            <h1 className={`text-5xl md:text-6xl font-black tracking-tight ${colorClass} font-fugaz transition-colors duration-1000`}>{title}</h1>
-                            
-                            {/* 結果表示時の難易度表示 */}
-                            {(isGameOver || isVictory || isPaused) && gameStats && (
-                                <div className="mb-1">
-                                    <span className={`inline-block py-0.5 px-3 rounded-full text-[15px] font-fugaz font-medium tracking-[0.2em] ${
-                                        gameStats.difficulty === Difficulty.HARD ? "text-red-400" :
-                                        gameStats.difficulty === Difficulty.EASY ? "text-emerald-400" :
-                                        "text-cyan-400"
-                                    }`}>
-                                        {gameStats.difficulty}
-                                    </span>
-                                </div>
-                            )}
-
-                            <p className={`text-white/40 font-mono tracking-[0.4em] text-sm md:text-md uppercase mt-2`}>{subtitle}</p>
-                        </div>
-
-                        {/* メニュー時のルール説明 */}
-                        {isMenu && (
-                            <div className="mb-3 text-left bg-white/[0.02] p-3 rounded-3xl border border-white/5 backdrop-blur-xl relative z-10">
-                                <div className="flex items-center mb-1 pl-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-700 mr-3 animate-ping"></span>
-                                    <span className="text-[15px] text-cyan-500 font-fugaz tracking-[0.2em] uppercase tracking-tighter">MISSION</span>
-                                </div>
-                                <ul className="text-white/85 text-[11px] md:text-xs space-y-0 font-comfortaa leading-relaxed pl-4">
-                                    <li className="flex items-start"><span className="text-cyan-500 mr-2 font-bold opacity-70">•</span><span>画面外に出たら<span className="text-pink-500 font-bold">脱落</span>！</span></li>
-                                    <li className="flex items-start"><span className="text-cyan-500 mr-2 font-bold opacity-70">•</span><span><span className="text-cyan-400 font-bold">SURVIVAL</span>: 最後の１人まで生き残れ！</span></li>
-                                    <li className="flex items-start"><span className="text-cyan-500 mr-2 font-bold opacity-70">•</span><span><span className="text-pink-400 font-bold">ENDLESS</span>: 倒した敵は復活する。限界に挑め！</span></li>
-                                </ul>
+            <div className={`relative z-10 liquid-glass p-5 md:p-10 rounded-[32px] md:rounded-[48px] text-center shadow-2xl pointer-events-auto max-w-xl w-[95%] max-h-[92vh] flex flex-col transform transition-all duration-700`}>
+                <div className="overflow-y-auto menu-scroll-container flex-1 w-full px-2">
+                    {showItemGuide ? (
+                        <ItemGuide onClose={() => setShowItemGuide(false)} />
+                    ) : (
+                        <>
+                            <div className="mb-4 md:mb-6 relative z-10">
+                                <h1 className={`text-4xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
+                                {gameStats && !isMenu && (
+                                    <div className="mt-1">
+                                        <span className="inline-block py-0.5 px-3 rounded-full text-[10px] md:text-[12px] font-orbitron font-bold tracking-[0.2em] bg-white/5 text-white/40">
+                                            {gameStats.difficulty} MODE
+                                        </span>
+                                    </div>
+                                )}
+                                <p className="text-white/40 font-rajdhani tracking-[0.3em] text-[10px] md:text-sm uppercase mt-1 md:mt-2">{subtitle}</p>
                             </div>
-                        )}
 
-                        {/* ボタン群 */}
-                        <div className="flex flex-col gap-1 w-full">
-                            {isPaused && (
-                                <button onMouseEnter={handleHover} onClick={() => handleButtonClick(onResume)} className={`group relative py-2 px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-fugaz text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[24px] w-full overflow-hidden shadow-lg`}>
-                                    <span className='relative z-10'>RESUME</span>
-                                    <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
-                                </button>
-                            )}
-                            
-                            {!isPaused && (
-                                <div className="flex gap-1 w-full">
-                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.SURVIVAL, selectedDifficulty))} className={`flex-1 group relative py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/30 hover:border-white/60 text-white font-fugaz text-sm md:text-lg tracking-[0.2em] transition-all duration-500 rounded-[24px] overflow-hidden shadow-lg`}>
-                                        <span className='relative z-10'>SURVIVAL</span>
-                                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
-                                    </button>
-                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.ENDLESS, selectedDifficulty))} className={`flex-1 group relative py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/30 hover:border-white/60 text-white font-fugaz text-sm md:text-lg tracking-[0.2em] transition-all duration-500 rounded-[24px] overflow-hidden shadow-lg`}>
-                                        <span className='relative z-10'>ENDLESS</span>
-                                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* 難易度選択 */}
-                            {!isPaused && (
-                                <div className="flex gap-1 w-full mt-2 px-1">
-                                    {renderDifficultyButton(Difficulty.EASY)}
-                                    {renderDifficultyButton(Difficulty.NORMAL)}
-                                    {renderDifficultyButton(Difficulty.HARD)}
-                                </div>
-                            )}
-                            
-                            {/* サブボタン: チュートリアル & ガイド */}
                             {isMenu && (
-                                <div className="flex gap-2 w-full mt-1">
-                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => onStart(GameMode.TUTORIAL, Difficulty.EASY))} className={`flex-1 group relative py-3 px-2 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-xs md:text-sm tracking-[0.2em] transition-all duration-500 rounded-[20px] overflow-hidden`}>
-                                        <span className='relative z-10 font-black tracking-tight'>チュートリアル</span>
-                                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    </button>
-                                    <button onMouseEnter={handleHover} onClick={() => handleButtonClick(() => setShowItemGuide(true))} className={`flex-1 group relative py-3 px-2 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-xs md:text-sm tracking-[0.2em] transition-all duration-500 rounded-[20px] overflow-hidden`}>
-                                        <span className='relative z-10 font-black tracking-tight'>アイテム一覧</span>
-                                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    </button>
+                                <div className="mb-4 md:mb-6 text-left bg-white/[0.02] p-3 md:p-4 rounded-2xl md:rounded-3xl border border-white/5 backdrop-blur-xl relative z-10">
+                                    <div className="flex items-center mb-1 md:mb-2">
+                                        <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-cyan-500 mr-2 md:mr-3 animate-pulse"></span>
+                                        <span className="text-[11px] md:text-[13px] text-cyan-500 font-orbitron font-bold tracking-[0.2em] uppercase">MISSION PROFILE</span>
+                                    </div>
+                                    <ul className="text-white/85 text-[10px] md:text-xs space-y-0.5 md:space-y-1 font-rajdhani font-semibold leading-relaxed pl-3 md:pl-4">
+                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span>画面外に出たら<span className="text-pink-500 font-bold">脱落</span></li>
+                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span><span className="text-cyan-400">SURVIVAL</span>: 最後の1人まで生き残れ</li>
+                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span><span className="text-pink-400">ENDLESS</span>: 無限の敵に抗え</li>
+                                    </ul>
                                 </div>
                             )}
 
-                            {!isMenu && (
-                                <button onMouseEnter={handleHover} onClick={() => handleButtonClick(onHome)} className={`group relative py-3 px-10 bg-transparent hover:bg-white/5 border border-white/5 hover:border-white/20 text-white/60 hover:text-white font-fugaz text-sm md:text-md tracking-[0.4em] transition-all duration-500 rounded-[20px] w-full overflow-hidden mt-2`}>
-                                    <span className='relative z-10 tracking-wider'>HOME</span>
-                                    <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                </button>
-                            )}
-                        </div>
-                    </>
-                )}
+                            <div className="flex flex-col gap-2 w-full max-w-sm mx-auto">
+                                {isPaused ? (
+                                    <button onClick={onResume} className="group relative py-2 md:py-3 px-8 md:px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-orbitron font-black text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                        <span className='relative z-10'>RESUME</span>
+                                        <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                                    </button>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => onStart(GameMode.SURVIVAL, selectedDifficulty)} className="flex-1 group relative py-2 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                            <span className='relative z-10'>SURVIVAL</span>
+                                            <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                                        </button>
+                                        <button onClick={() => onStart(GameMode.ENDLESS, selectedDifficulty)} className="flex-1 group relative py-2 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                            <span className='relative z-10'>ENDLESS</span>
+                                            <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
+                                        </button>
+                                    </div>
+                                )}
+
+                                {!isPaused && (
+                                    <div className="flex gap-1 w-full mt-0.5 md:mt-1">
+                                        {renderDifficultyButton(Difficulty.EASY)}
+                                        {renderDifficultyButton(Difficulty.NORMAL)}
+                                        {renderDifficultyButton(Difficulty.HARD)}
+                                    </div>
+                                )}
+
+                                {isMenu && (
+                                    <div className="flex gap-2 w-full mt-0.5 md:mt-1">
+                                        <button onClick={() => onStart(GameMode.TUTORIAL, Difficulty.EASY)} className="flex-1 py-2 md:py-3 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
+                                            チュートリアル
+                                        </button>
+                                        <button onClick={() => setShowItemGuide(true)} className="flex-1 py-2 md:py-3 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
+                                            アイテム説明
+                                        </button>
+                                    </div>
+                                )}
+
+                                {!isMenu && (
+                                    <button onClick={onHome} className="mt-2 md:mt-4 py-1 md:py-2 text-white/20 hover:text-white/60 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.3em] md:tracking-[0.4em] transition-all">
+                                        HOME
+                                    </button>
+                                )}
+
+                                {isMenu && userId && (
+                                    <div className="mt-4 md:mt-8 py-3 border-t border-white/5 flex justify-between items-center text-[9px] md:text-[10px] font-rajdhani font-bold text-white/20 tracking-widest">
+                                        <div className="flex items-center">
+                                            <div className="w-1 h-1 rounded-full bg-green-500 mr-2 animate-pulse"></div>
+                                            <span>ONLINE</span>
+                                        </div>
+                                        <span>ID: {userId.substring(0, 8)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     );
