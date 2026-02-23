@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { GameMode, Difficulty, ScoreRecord } from '../types';
 
 // 環境変数からSupabaseの設定を読み込む
 // Vite環境なので import.meta.env を使用します。
@@ -18,3 +19,42 @@ if (!isSupabaseConfigured) {
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// スコアを保存する
+export const saveScore = async (userId: string, mode: GameMode, difficulty: Difficulty, score: number) => {
+    if (!isSupabaseConfigured) return;
+    
+    // チュートリアルは保存しない
+    if (mode === GameMode.TUTORIAL) return;
+
+    const { error } = await supabase
+        .from('scores')
+        .insert([
+            { user_id: userId, game_mode: mode, difficulty: difficulty, score: score }
+        ]);
+    
+    if (error) console.error('Error saving score:', error);
+};
+
+// ランキングを取得する
+export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, limit = 20): Promise<ScoreRecord[]> => {
+    if (!isSupabaseConfigured) return [];
+
+    // サバイバルモードはタイム（短い方が良い）なので昇順
+    // エンドレスモードはキル数（多い方が良い）なので降順
+    const ascending = mode === GameMode.SURVIVAL;
+
+    const { data, error } = await supabase
+        .from('scores')
+        .select('*')
+        .eq('game_mode', mode)
+        .eq('difficulty', difficulty)
+        .order('score', { ascending })
+        .limit(limit);
+
+    if (error) {
+        console.error('Error fetching leaderboard:', error);
+        return [];
+    }
+    return data as ScoreRecord[];
+};

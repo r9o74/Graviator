@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, GameMode, GameStats, Difficulty } from '../types';
 import { ItemGuide } from './ItemGuide';
+import { Leaderboard } from './Leaderboard';
 
 interface MenuOverlayProps {
     gameState: GameState;
@@ -30,6 +31,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     dbStatus
 }) => {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
 
     // 背景アニメーション用のマウス位置追跡
     useEffect(() => {
@@ -153,10 +155,16 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                 <div className="overflow-y-auto menu-scroll-container flex-1 w-full px-2">
                     {showItemGuide ? (
                         <ItemGuide onClose={() => setShowItemGuide(false)} />
+                    ) : showLeaderboard ? (
+                        <Leaderboard 
+                            onClose={() => setShowLeaderboard(false)} 
+                            currentMode={gameStats?.mode}
+                            currentDifficulty={selectedDifficulty}
+                        />
                     ) : (
                         <>
-                            <div className="mb-4 md:mb-6 relative z-10">
-                                <h1 className={`text-4xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
+                            <div className="mt-6 md:mt-0 mb-4 md:mb-6 relative z-10">
+                                <h1 className={`text-5xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
                                 {gameStats && !isMenu && (
                                     <div className="mt-1">
                                         <span className="inline-block py-0.5 px-3 rounded-full text-[10px] md:text-[12px] font-orbitron font-bold tracking-[0.2em] bg-white/5 text-white/40">
@@ -174,9 +182,9 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                         <span className="text-[11px] md:text-[13px] text-cyan-500 font-orbitron font-bold tracking-[0.2em] uppercase">MISSION PROFILE</span>
                                     </div>
                                     <ul className="text-white/85 text-[10px] md:text-xs space-y-0.5 md:space-y-1 font-rajdhani font-semibold leading-relaxed pl-3 md:pl-4">
-                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span>画面外に出たら<span className="text-pink-500 font-bold">脱落</span></li>
-                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span><span className="text-cyan-400">SURVIVAL</span>: 最後の1人まで生き残れ</li>
-                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span><span className="text-pink-400">ENDLESS</span>: 無限の敵に抗え</li>
+                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span>画面外に出たら<span className="text-pink-500 font-bold text-[12px] ">脱落</span>！</li>
+                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span><span className="text-cyan-400 text-[14px]">SURVIVAL </span>: 最後の1人まで生き残れ！</li>
+                                        <li><span className="text-cyan-500 mr-1 md:mr-2">•</span><span className="text-pink-400 text-[14px]">ENDLESS </span>: 敵の数は無限大。限界に挑め！</li>
                                     </ul>
                                 </div>
                             )}
@@ -210,28 +218,29 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
                                 {isMenu && (
                                     <div className="flex gap-2 w-full mt-0.5 md:mt-1">
-                                        <button onClick={() => onStart(GameMode.TUTORIAL, Difficulty.EASY)} className="flex-1 py-2 md:py-3 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
+                                        <button onClick={() => onStart(GameMode.TUTORIAL, Difficulty.EASY)} className="flex-1 py-2 md:py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
                                             チュートリアル
                                         </button>
-                                        <button onClick={() => setShowItemGuide(true)} className="flex-1 py-2 md:py-3 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
+                                        <button onClick={() => setShowItemGuide(true)} className="flex-1 py-2 md:py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
                                             アイテム説明
                                         </button>
                                     </div>
                                 )}
 
-                                {!isMenu && (
-                                    <button onClick={onHome} className="mt-2 md:mt-4 py-1 md:py-2 text-white/20 hover:text-white/60 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.3em] md:tracking-[0.4em] transition-all">
-                                        HOME
+                                {isMenu && (
+                                    <button onClick={() => setShowLeaderboard(true)} className="py-2 md:py-2 text-cyan-400/60 hover:text-cyan-400 font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-cyan-500/30">
+                                        RANKING
                                     </button>
                                 )}
 
-                                {isMenu && userId && (
-                                    <div className="mt-4 md:mt-8 py-3 border-t border-white/5 flex justify-between items-center text-[9px] md:text-[10px] font-rajdhani font-bold text-white/20 tracking-widest">
-                                        <div className="flex items-center">
-                                            <div className="w-1 h-1 rounded-full bg-green-500 mr-2 animate-pulse"></div>
-                                            <span>ONLINE</span>
-                                        </div>
-                                        <span>ID: {userId.substring(0, 8)}</span>
+                                {!isMenu && (
+                                    <div className="flex gap-2 mt-2 md:mt-4">
+                                         <button onClick={onHome} className="flex-1 py-1 md:py-2 text-white/20 hover:text-white/60 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.3em] transition-all">
+                                            HOME
+                                        </button>
+                                        <button onClick={() => setShowLeaderboard(true)} className="flex-1 py-1 md:py-2 text-cyan-500/30 hover:text-cyan-500/80 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.2em] transition-all">
+                                            RANKING
+                                        </button>
                                     </div>
                                 )}
                             </div>

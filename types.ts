@@ -54,3 +54,13 @@ export interface GameStats {
     tutorialMessage?: string; // チュートリアル用の指示テキスト
     tutorial_step_show?: string; // チュートリアルのステップ表示 (e.g. "STEP 1/3")
 }
+
+// DBに保存するスコアレコード
+export interface ScoreRecord {
+    id: string;
+    user_id: string;
+    game_mode: GameMode;
+    difficulty: Difficulty;
+    score: number;
+    created_at: string;
+}

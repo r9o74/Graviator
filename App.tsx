@@ -4,7 +4,7 @@ import { GameState, InputState, GameStats, GameMode, Difficulty } from './types'
 import MenuOverlay from './components/MenuOverlay';
 import InfoPanel from './components/InfoPanel';
 import VirtualJoystick from './components/VirtualJoystick';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { supabase, isSupabaseConfigured, saveScore } from './lib/supabase';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,6 +22,9 @@ function App() {
     
     const keyboardInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
     const joystickInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
+
+    // スコア重複保存防止用
+    const lastSavedRef = useRef<{mode: GameMode, difficulty: Difficulty, date: number} | null>(null);
 
     useEffect(() => {
         const initAuth = async () => {
@@ -51,6 +54,37 @@ function App() {
         };
         initAuth();
     }, []);
+
+    // スコア自動保存ロジック
+    useEffect(() => {
+        if (!userId || !gameStats) return;
+
+        // 保存すべき条件:
+        // 1. サバイバルモードでVICTORY（勝利）
+        // 2. エンドレスモードでGAME_OVER（敗北）
+        const shouldSave = 
+            (gameState === GameState.VICTORY && gameStats.mode === GameMode.SURVIVAL) ||
+            (gameState === GameState.GAME_OVER && gameStats.mode === GameMode.ENDLESS);
+
+        if (shouldSave) {
+            // 重複保存防止（5秒以内の同じ条件での保存を防ぐ）
+            const now = Date.now();
+            if (lastSavedRef.current && 
+                lastSavedRef.current.mode === gameStats.mode && 
+                lastSavedRef.current.difficulty === gameStats.difficulty &&
+                now - lastSavedRef.current.date < 5000) {
+                return;
+            }
+            
+            // スコア: サバイバルは生存時間、エンドレスはキル数
+            const score = gameStats.mode === GameMode.SURVIVAL ? gameStats.timeSurvived : gameStats.kills;
+            
+            saveScore(userId, gameStats.mode, gameStats.difficulty, score);
+            
+            // 保存記録更新
+            lastSavedRef.current = { mode: gameStats.mode, difficulty: gameStats.difficulty, date: now };
+        }
+    }, [gameState, gameStats, userId]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
