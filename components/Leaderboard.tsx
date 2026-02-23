@@ -85,13 +85,13 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                     onClick={() => setMode(GameMode.SURVIVAL)}
                     className={`flex-1 py-2 text-xs font-orbitron font-bold tracking-widest rounded-lg transition-all ${mode === GameMode.SURVIVAL ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                 >
-                    SURVIVAL <span className="hidden md:inline text-[9px] opacity-70 ml-1">[S]</span>
+                    SURVIVAL <span className="hidden md:inline text-[9px] opacity-50 ml-1">[S]</span>
                 </button>
                 <button 
                     onClick={() => setMode(GameMode.ENDLESS)}
                     className={`flex-1 py-2 text-xs font-orbitron font-bold tracking-widest rounded-lg transition-all ${mode === GameMode.ENDLESS ? 'bg-pink-600 text-white shadow-lg shadow-pink-900/50' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                 >
-                    ENDLESS <span className="hidden md:inline text-[9px] opacity-70 ml-1">[E]</span>
+                    ENDLESS <span className="hidden md:inline text-[9px] opacity-50 ml-1">[E]</span>
                 </button>
             </div>
 
@@ -107,14 +107,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                         <button
                             key={diff}
                             onClick={() => setDifficulty(diff)}
-                            className={`px-3 py-1 text-[10px] md:text-xs font-orbitron font-bold tracking-wider border rounded-full transition-all group relative overflow-hidden ${
+                            className={`px-3 py-1 text-[10px] md:text-xs font-orbitron tracking-wider border rounded-full transition-all group relative overflow-hidden ${
                                 difficulty === diff 
                                     ? (diff === Difficulty.HARD ? 'border-red-500 text-red-400 bg-red-500/10' : diff === Difficulty.EASY ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-cyan-500 text-cyan-400 bg-cyan-500/10')
-                                    : 'border-white/10 text-white/65 hover:border-white/30 hover:text-white/60'
+                                    : 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
                             }`}
                         >
                             {diff}
-                            {keyHint && <span className="hidden md:inline-block ml-1 opacity-60 text-[8px]">[{keyHint}]</span>}
+                            {keyHint && <span className="hidden md:inline-block ml-1 opacity-30 text-[8px]">[{keyHint}]</span>}
                         </button>
                     );
                 })}

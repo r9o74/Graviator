@@ -18,7 +18,6 @@ const THRUST_FORCE = 1800.0;          // プレイヤーの推進力
 const BREAKING_CONSTANT = 3.5;        // 壁際などでの減速係数
 const WALL_MARGIN = 150;              // 壁からの危険エリア距離
 const BREAK_BOOST = 25;               // 減速力のブースト係数
-const ENEMY_NUMBER_ENDLESS = 5;       // エンドレスモードの初期敵数
 const SAFE_DISTANCE = 200;            // スポーン時の安全距離
 const DIST_EXP = 0.88;                // 引力計算の距離の指数（1.0で物理的に正しい逆二乗則に近い挙動だが、ゲーム用に調整）
 const G_LINE_WIDTH = 1;               // 重力結合線の描画幅
@@ -28,7 +27,6 @@ const FRICTION_VEL_EXP = 0.0;         // 摩擦の速度依存指数
 
 
 const BASE_LOGICAL_SIZE = IS_MOBILE ? 800 : 700; // 画面サイズの基準値
-const BASE_AREA = BASE_LOGICAL_SIZE * BASE_LOGICAL_SIZE; 
 
 const TRAIL_LENGTH = 70;             // 軌跡の長さ
 // カラーパレット
@@ -605,7 +603,8 @@ class Entity {
         ctx.restore(); // 本体描画終了、不透明度設定リセット
 
         // ラベル描画：透明度の影響を受けない（特にプレイヤー）
-        if (this.isPlayer || ((isPowered || isInverted || isCapturing) && this.stealthOpacity > 0.5)) {
+        // 修正: 軌斥(repulsiveTrailTimer > 0)の場合も表示対象に追加
+        if (this.isPlayer || ((isPowered || isInverted || isCapturing || this.repulsiveTrailTimer > 0) && this.stealthOpacity > 0.5)) {
             ctx.save();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             const fontSize = Math.round(LABEL_PHYSICAL_FONT_SIZE / scaleFactor);
@@ -679,6 +678,7 @@ export class GameEngine {
     
     // ループ管理
     lastTime: number = 0; animationId: number = 0; startTime: number = 0;
+    survivalTime: number = 0; // 累積生存時間（一時停止考慮用）
     
     // 統計・スコア
     initialEnemyCount: number = DEFAULT_ENEMY_NUMBER_SURVIVAL; 
@@ -771,13 +771,12 @@ export class GameEngine {
         this.shakeIntensity = 0; this.flashOpacity = 0; 
         
         // 1秒遅延して開始するための調整
-        this.startTime = Date.now() + 1000; 
+        this.startTime = Date.now() + 1000; // 旧変数は念のため残すが、ロジックはsurvivalTimeを使用
+        this.survivalTime = -1.0; 
         this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.frameCount = 0;
         this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
         
         // プレイヤーと敵のスポーン設定
-        const safeMarginX = this.logicalWidth * 0.15;
-        const safeMarginY = this.logicalHeight * 0.15;
         const playerX = this.logicalWidth / 2; 
         const playerY = this.logicalHeight / 2;
         
@@ -822,7 +821,10 @@ export class GameEngine {
         }
         
         this.setGameState(GameState.PLAYING); this.lastTime = performance.now();
-        if (!this.isLoopRunning) this.loop(this.lastTime);
+        if (!this.isLoopRunning) {
+            this.isLoopRunning = true;
+            this.loop(this.lastTime);
+        }
     }
 
     // ゲーム状態の変更とイベント発火
@@ -866,16 +868,21 @@ export class GameEngine {
         const count = entity.isPlayer ? 500 : (entity.isSatellite ? 50 : 600);
         const intensity = entity.isPlayer ? 60 : (entity.isSatellite ? 10 : 40);
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
-        this.flashOpacity = entity.isPlayer ? 0.9 : (entity.isSatellite ? 0.1 : 0.6);
-        this.flashColor = entity.color;
+        this.flashOpacity = entity.isPlayer ? 0.9 : (entity.isSatellite ? 0.2 : 0.6);
+        
+        const baseColor = entity.color;
         for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2; const speed = 100 + Math.random() * 500;
-            const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
-            this.particles.push(new Particle(entity.pos.x, entity.pos.y, vel, entity.color, 2.0));
+             const angle = Math.random() * Math.PI * 2;
+             const speed = Math.random() * (entity.isPlayer ? 800 : 400);
+             const life = (Math.random() * 0.5 + 0.5);
+             const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed).add(entity.vel.scale(0.3));
+             this.particles.push(new Particle(entity.pos.x, entity.pos.y, vel, baseColor, life, 1.5));
         }
     }
 
-    handleInput(input: InputState) { this.input = input; }
+    handleInput(input: InputState) {
+        this.input = input;
+    }
 
     // 排気パーティクルの生成
     spawnExhaust(entity: Entity, direction: Vector2, thrustMagnitude: number = 1.0) {
@@ -909,7 +916,7 @@ export class GameEngine {
     
     // 能力強奪成功時のエフェクト
     spawnTransferParticles(from: Entity, to: Entity, color: string) {
-        const count = 10;
+        const count = 50;
         for (let i = 0; i < count; i++) {
             const t = Math.random();
             const startX = from.pos.x + (Math.random() - 0.5) * from.radius * 2;
@@ -1078,7 +1085,7 @@ export class GameEngine {
              maxGravity: this.maxGravityRecorded, 
              currentEnemies: this.entities.filter(e => e.isCpu).length, 
              initialEnemies: this.initialEnemyCount, 
-             timeSurvived: (Date.now() - this.startTime) / 1000, 
+             timeSurvived: Math.max(0, this.survivalTime), // 累積時間を使用
              dangerLevel: 0, 
              kills: this.killCount,
              tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined,
@@ -1132,6 +1139,9 @@ export class GameEngine {
         }
         if (this.gameState !== GameState.PLAYING) return;
         
+        // 時間経過の加算（PAUSEでない場合のみ）
+        this.survivalTime += dt;
+
         // チュートリアル更新
         if (this.gameMode === GameMode.TUTORIAL) {
             this.updateTutorial(dt);

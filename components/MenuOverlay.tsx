@@ -238,10 +238,10 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
                                 {!isMenu && (
                                     <div className="flex gap-2 mt-2 md:mt-4">
-                                         <button onClick={onHome} className="flex-1 py-1 md:py-2 text-white/20 hover:text-white/60 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.3em] transition-all">
+                                         <button onClick={onHome} className="flex-1 py-1 md:py-2 text-white/60 hover:text-white/80 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.3em] transition-all">
                                             HOME
                                         </button>
-                                        <button onClick={() => setShowLeaderboard(true)} className="flex-1 py-1 md:py-2 text-cyan-500/30 hover:text-cyan-500/80 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.2em] transition-all">
+                                        <button onClick={() => setShowLeaderboard(true)} className="flex-1 py-1 md:py-2 text-white/60 hover:text-white/80 font-orbitron font-bold text-[9px] md:text-[10px] tracking-[0.2em] transition-all">
                                             RANKING
                                         </button>
                                     </div>
