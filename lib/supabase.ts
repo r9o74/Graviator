@@ -113,3 +113,39 @@ export const signOut = async () => {
         console.error('Exception during sign out:', e);
     }
 };
+
+// lib/supabase.ts
+
+// プロフィール（名前）を保存または更新する
+export const updateProfile = async (userId: string, displayName: string) => {
+    if (!isSupabaseConfigured) return;
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .upsert({ 
+                id: userId, 
+                display_name: displayName, 
+                updated_at: new Date() 
+            });
+        if (error) throw error;
+    } catch (e) {
+        console.error('Error updating profile:', e);
+    }
+};
+
+// プロフィール（名前）を取得する
+export const getProfile = async (userId: string) => {
+    if (!isSupabaseConfigured) return null;
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', userId)
+            .single();
+        if (error && error.code !== 'PGRST116') throw error; // PGRST116はデータなしの意味
+        return data ? data.display_name : null;
+    } catch (e) {
+        console.error('Error fetching profile:', e);
+        return null;
+    }
+};

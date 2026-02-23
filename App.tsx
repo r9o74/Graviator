@@ -4,7 +4,7 @@ import { GameState, InputState, GameStats, GameMode, Difficulty } from './types'
 import MenuOverlay from './components/MenuOverlay';
 import InfoPanel from './components/InfoPanel';
 import VirtualJoystick from './components/VirtualJoystick';
-import { supabase, isSupabaseConfigured, saveScore } from './lib/supabase';
+import { supabase, isSupabaseConfigured, saveScore, getProfile, updateProfile } from './lib/supabase';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,7 +28,7 @@ function App() {
     // スコア重複保存防止用
     const lastSavedRef = useRef<{mode: GameMode, difficulty: Difficulty, date: number} | null>(null);
 
-    const [userName, setUserName] = useState<string>(localStorage.getItem('graviator_name') || 'Player');
+    const [userName, setUserName] = useState<string>(localStorage.getItem('graviator_name') || '');
 
     useEffect(() => {
         const initAuth = async () => {
@@ -61,14 +61,21 @@ function App() {
 
         // ★追加: 認証状態の変更（ログイン・ログアウト）をリアルタイムに監視する
         if (isSupabaseConfigured) {
-            const { data: authListener } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+            const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
                 if (session) {
-                    setUserId(session.user.id);
+                    const uid = session.user.id;
+                    setUserId(uid);
                     setDbStatus('connected');
+
+                    // ★追加：ログインしたユーザーの保存済み名前を取得する
+                    const savedName = await getProfile(uid);
+                    if (savedName) {
+                        setUserName(savedName);
+                        localStorage.setItem('graviator_name', savedName);
+                    }
                 } else {
-                    // ログアウトされた場合は再度匿名ログインを試みるか、nullにする
                     setUserId(null);
-                    initAuth(); // ログアウト後は再度匿名アカウントを作り直す
+                    initAuth();
                 }
             });
 
@@ -77,6 +84,18 @@ function App() {
             };
         }
     }, []);
+
+
+    // 名前が変更されたらDBとローカルストレージを更新
+    useEffect(() => {
+        if (userId && userName && userName.trim() !== '' && userName !== 'Player') {
+            localStorage.setItem('graviator_name', userName);
+            
+            // 匿名ユーザーでなければDBに保存
+            // (supabase.auth.getUser() で匿名か判定できますが、まずは一律保存でもOK)
+            updateProfile(userId, userName);
+        }
+    }, [userName, userId]);
 
 
     // スコア自動保存ロジック
