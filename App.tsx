@@ -58,7 +58,7 @@ function App() {
 
         // ★追加: 認証状態の変更（ログイン・ログアウト）をリアルタイムに監視する
         if (isSupabaseConfigured) {
-            const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+            const { data: authListener } = supabase.auth.onAuthStateChange((event: any, session: any) => {
                 if (session) {
                     setUserId(session.user.id);
                     setDbStatus('connected');
