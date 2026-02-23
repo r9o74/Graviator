@@ -37,6 +37,7 @@ function App() {
                 const auth = supabase.auth as any;
                 const { data: { session }, error: sessionError } = await auth.getSession();
                 if (sessionError) throw sessionError;
+                
                 if (session) {
                     setUserId(session.user.id);
                     setDbStatus('connected');
@@ -54,7 +55,26 @@ function App() {
             }
         };
         initAuth();
+
+        // ★追加: 認証状態の変更（ログイン・ログアウト）をリアルタイムに監視する
+        if (isSupabaseConfigured) {
+            const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+                if (session) {
+                    setUserId(session.user.id);
+                    setDbStatus('connected');
+                } else {
+                    // ログアウトされた場合は再度匿名ログインを試みるか、nullにする
+                    setUserId(null);
+                    initAuth(); // ログアウト後は再度匿名アカウントを作り直す
+                }
+            });
+
+            return () => {
+                authListener.subscription.unsubscribe();
+            };
+        }
     }, []);
+
 
     // スコア自動保存ロジック
     useEffect(() => {

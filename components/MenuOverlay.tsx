@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GameState, GameMode, GameStats, Difficulty } from '../types';
 import { ItemGuide } from './ItemGuide';
 import { Leaderboard } from './Leaderboard';
+import { signInWithGoogle, signOut } from '../lib/supabase';
 
 interface MenuOverlayProps {
     gameState: GameState;
@@ -200,11 +201,11 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                     </button>
                                 ) : (
                                     <div className="flex gap-2">
-                                        <button onClick={() => onStart(GameMode.SURVIVAL, selectedDifficulty)} className="flex-1 group relative py-2 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                        <button onClick={() => onStart(GameMode.SURVIVAL, selectedDifficulty)} className="flex-1 group relative py-3 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
                                             <span className='relative z-10'>SURVIVAL</span>
                                             <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                         </button>
-                                        <button onClick={() => onStart(GameMode.ENDLESS, selectedDifficulty)} className="flex-1 group relative py-2 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                        <button onClick={() => onStart(GameMode.ENDLESS, selectedDifficulty)} className="flex-1 group relative py-3 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
                                             <span className='relative z-10'>ENDLESS</span>
                                             <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                         </button>
@@ -235,6 +236,28 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                         RANKING
                                     </button>
                                 )}
+
+                                {/* ★ここから追加: ログイン/ログアウトボタン */}
+                                {isMenu && (
+                                    <div className="flex w-full mt-2">
+                                        {/* 簡易的な判定: 匿名ユーザーは is_anonymous フラグなどを確認するのが確実ですが、今回はボタンを切り替えます */}
+                                        <button 
+                                            onClick={signInWithGoogle} 
+                                            className="flex-1 py-2 text-white/80 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-blue-600/30 rounded-xl md:rounded-2xl border border-blue-500/50 hover:bg-blue-600/50"
+                                        >
+                                            Google LOGIN
+                                        </button>
+                                        
+                                        {/* 開発・テスト用にログアウトボタンも用意する場合 */}
+                                        <button 
+                                            onClick={signOut} 
+                                            className="ml-2 px-4 py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:bg-red-500/30 hover:border-red-500/50"
+                                        >
+                                            LOGOUT
+                                        </button>
+                                    </div>
+                                )}
+                                {/* ★追加ここまで */}
 
                                 {!isMenu && (
                                     <div className="flex gap-2 mt-2 md:mt-4">

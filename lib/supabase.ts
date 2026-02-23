@@ -85,3 +85,31 @@ export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, lim
         return [];
     }
 };
+
+// Googleでログインする関数
+export const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                // ログイン完了後に元の画面（ゲーム）に戻ってくるようにする
+                redirectTo: window.location.origin 
+            }
+        });
+        if (error) console.error('Google login error:', error);
+    } catch (e) {
+        console.error('Exception during Google login:', e);
+    }
+};
+
+// ログアウトする関数
+export const signOut = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) console.error('Sign out error:', error);
+    } catch (e) {
+        console.error('Exception during sign out:', e);
+    }
+};
