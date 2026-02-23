@@ -92,15 +92,15 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
         let blobBgClass = "";
 
         if (diff === Difficulty.EASY) {
-            baseColorClass = isSelected ? "text-emerald-400 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "text-white/40 border-transparent hover:text-emerald-400";
+            baseColorClass = isSelected ? "text-emerald-400 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "text-white/40 border-white/10 hover:text-emerald-400";
             activeBgClass = isSelected ? "bg-emerald-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-emerald-500";
         } else if (diff === Difficulty.NORMAL) {
-            baseColorClass = isSelected ? "text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "text-white/40 border-transparent hover:text-cyan-400";
+            baseColorClass = isSelected ? "text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "text-white/40 border-white/10 hover:text-cyan-400";
             activeBgClass = isSelected ? "bg-cyan-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-cyan-500";
         } else {
-            baseColorClass = isSelected ? "text-red-400 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "text-white/40 border-transparent hover:text-red-400";
+            baseColorClass = isSelected ? "text-red-400 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "text-white/40 border-white/10 hover:text-red-400";
             activeBgClass = isSelected ? "bg-red-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-red-600";
         }
@@ -167,8 +167,8 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                         />
                     ) : (
                         <>
-                            <div className="mt-6 md:mt-0 mb-4 md:mb-6 relative z-10">
-                                <h1 className={`text-5xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
+                            <div className="mt-7 landscape:mt-0 md:mt-0 mb-6 md:mb-6 relative z-10">
+                                <h1 className={`text-4xl landscape:text-6xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
                                 {gameStats && !isMenu && (
                                     <div className="mt-1">
                                         <span className="inline-block py-0.5 px-3 rounded-full text-[10px] md:text-[12px] font-orbitron font-bold tracking-[0.2em] bg-white/5 text-white/40">
@@ -201,11 +201,11 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                     </button>
                                 ) : (
                                     <div className="flex gap-2">
-                                        <button onClick={() => onStart(GameMode.SURVIVAL, selectedDifficulty)} className="flex-1 group relative py-3 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                        <button onClick={() => onStart(GameMode.SURVIVAL, selectedDifficulty)} className="flex-1 group relative py-3 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-cyan-400 text-white hover:text-cyan-400 font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
                                             <span className='relative z-10'>SURVIVAL</span>
                                             <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                         </button>
-                                        <button onClick={() => onStart(GameMode.ENDLESS, selectedDifficulty)} className="flex-1 group relative py-3 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-white/40 text-white font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
+                                        <button onClick={() => onStart(GameMode.ENDLESS, selectedDifficulty)} className="flex-1 group relative py-3 md:py-3 px-2 bg-white/5 hover:bg-white/10 border-2 border-white/20 hover:border-pink-400 text-white hover:text-pink-400 font-orbitron font-black text-xs md:text-lg tracking-[0.1em] md:tracking-[0.2em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
                                             <span className='relative z-10'>ENDLESS</span>
                                             <div className={`absolute inset-0 ${blobColor} opacity-0 group-hover:opacity-30 transform translate-y-full group-hover:translate-y-0 transition-all duration-700 ease-out`}></div>
                                         </button>
@@ -222,39 +222,38 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
                                 {isMenu && (
                                     <div className="flex gap-2 w-full mt-0.5 md:mt-1">
-                                        <button onClick={() => onStart(GameMode.TUTORIAL, Difficulty.EASY)} className="flex-1 py-2 md:py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
-                                            チュートリアル
+                                        <button onClick={() => onStart(GameMode.TUTORIAL, Difficulty.EASY)} className="flex-1 py-2 md:py-2 text-white hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 hover:bg-white/20 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
+                                            TUTORIAL
                                         </button>
-                                        <button onClick={() => setShowItemGuide(true)} className="flex-1 py-2 md:py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
-                                            アイテム説明
+                                        <button onClick={() => setShowItemGuide(true)} className="flex-1 py-2 md:py-2 text-white hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 hover:bg-white/20 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/20">
+                                            ITEM GUIDE
                                         </button>
                                     </div>
                                 )}
 
                                 {isMenu && (
-                                    <button onClick={() => setShowLeaderboard(true)} className="py-2 md:py-2 text-cyan-400/60 hover:text-cyan-400 font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:border-cyan-500/30">
-                                        RANKING
-                                    </button>
-                                )}
+                                    <div className="flex gap-2 w-full mt-0.5 md:mt-1">
+                                        <button onClick={() => setShowLeaderboard(true)} className="flex-1 px-20 py-2 text-white hover:text-cyan-400 font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 hover:bg-white/20 rounded-xl md:rounded-2xl border border-white/5 hover:border-cyan-500/30">
+                                            RANKING
+                                        </button>
 
-                                {/* ★ここから追加: ログイン/ログアウトボタン */}
-                                {isMenu && (
-                                    <div className="flex w-full mt-2">
                                         {/* 簡易的な判定: 匿名ユーザーは is_anonymous フラグなどを確認するのが確実ですが、今回はボタンを切り替えます */}
                                         <button 
                                             onClick={signInWithGoogle} 
                                             className="flex-1 py-2 text-white/80 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-blue-600/30 rounded-xl md:rounded-2xl border border-blue-500/50 hover:bg-blue-600/50"
                                         >
-                                            Google LOGIN
+                                            LOGIN
                                         </button>
                                         
-                                        {/* 開発・テスト用にログアウトボタンも用意する場合 */}
+                                        {/* 開発・テスト用にログアウトボタンも用意する場合
                                         <button 
                                             onClick={signOut} 
-                                            className="ml-2 px-4 py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:bg-red-500/30 hover:border-red-500/50"
+                                            className="ml-2 py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:bg-red-500/30 hover:border-red-500/50"
                                         >
                                             LOGOUT
                                         </button>
+                                        */}
+                                        
                                     </div>
                                 )}
                                 {/* ★追加ここまで */}

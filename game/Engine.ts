@@ -608,7 +608,7 @@ class Entity {
             ctx.save();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             const fontSize = Math.round(LABEL_PHYSICAL_FONT_SIZE / scaleFactor);
-            ctx.font = `${fontSize * 0.9}px JetBrains Mono`; ctx.textAlign = 'center';
+            ctx.font = `${fontSize * 0.9}px font-fugaz`; ctx.textAlign = 'center';
             let label = this.isPlayer ? "YOU" : "ENEMY";
             if (isPowered) label = "HEAVY";
             if (isInverted) label = "REPULS";
