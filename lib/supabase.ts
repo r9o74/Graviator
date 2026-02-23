@@ -120,14 +120,21 @@ export const signOut = async () => {
 export const updateProfile = async (userId: string, displayName: string) => {
     if (!isSupabaseConfigured) return;
     try {
-        const { error } = await supabase
+        const { error: profileError } = await supabase
             .from('profiles')
             .upsert({ 
                 id: userId, 
                 display_name: displayName, 
                 updated_at: new Date() 
             });
-        if (error) throw error;
+        if (profileError) throw profileError;
+        const { error: scoresError } = await supabase
+            .from('scores')
+            .update({ user_name: displayName })
+            .eq('user_id', userId);
+        
+        if (scoresError) throw scoresError;
+
     } catch (e) {
         console.error('Error updating profile:', e);
     }

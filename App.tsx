@@ -88,12 +88,18 @@ function App() {
 
     // 名前が変更されたらDBとローカルストレージを更新
     useEffect(() => {
-        if (userId && userName && userName.trim() !== '' && userName !== 'Player') {
+        if (!userId) return;
+
+        // 名前が有効な値（空文字でなく、'Player'でもない）の場合
+        if (userName && userName.trim() !== '' && userName !== 'Player') {
             localStorage.setItem('graviator_name', userName);
-            
-            // 匿名ユーザーでなければDBに保存
-            // (supabase.auth.getUser() で匿名か判定できますが、まずは一律保存でもOK)
             updateProfile(userId, userName);
+        } 
+        // 名前が空文字（0文字）になった場合
+        else if (userName === '') {
+            localStorage.removeItem('graviator_name');
+            // 過去の記録も名前なし（null）に更新してID表示に戻す
+            updateProfile(userId, null as any); 
         }
     }, [userName, userId]);
 
