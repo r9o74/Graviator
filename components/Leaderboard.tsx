@@ -24,6 +24,34 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
         fetchScores();
     }, [mode, difficulty]);
 
+    // キーボードショートカット
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            switch(e.key.toLowerCase()) {
+                case '1':
+                    setDifficulty(Difficulty.EASY);
+                    break;
+                case '2':
+                    setDifficulty(Difficulty.NORMAL);
+                    break;
+                case '3':
+                    setDifficulty(Difficulty.HARD);
+                    break;
+                case 's':
+                    setMode(GameMode.SURVIVAL);
+                    break;
+                case 'e':
+                    setMode(GameMode.ENDLESS);
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
         return date.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
@@ -57,31 +85,39 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                     onClick={() => setMode(GameMode.SURVIVAL)}
                     className={`flex-1 py-2 text-xs font-orbitron font-bold tracking-widest rounded-lg transition-all ${mode === GameMode.SURVIVAL ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                 >
-                    SURVIVAL
+                    SURVIVAL <span className="hidden md:inline text-[9px] opacity-70 ml-1">[S]</span>
                 </button>
                 <button 
                     onClick={() => setMode(GameMode.ENDLESS)}
                     className={`flex-1 py-2 text-xs font-orbitron font-bold tracking-widest rounded-lg transition-all ${mode === GameMode.ENDLESS ? 'bg-pink-600 text-white shadow-lg shadow-pink-900/50' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                 >
-                    ENDLESS
+                    ENDLESS <span className="hidden md:inline text-[9px] opacity-70 ml-1">[E]</span>
                 </button>
             </div>
 
             {/* 難易度選択 */}
             <div className="flex gap-2 justify-center mb-4 shrink-0">
-                {(Object.values(Difficulty) as Difficulty[]).map((diff) => (
-                    <button
-                        key={diff}
-                        onClick={() => setDifficulty(diff)}
-                        className={`px-3 py-1 text-[10px] md:text-xs font-orbitron tracking-wider border rounded-full transition-all ${
-                            difficulty === diff 
-                                ? (diff === Difficulty.HARD ? 'border-red-500 text-red-400 bg-red-500/10' : diff === Difficulty.EASY ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-cyan-500 text-cyan-400 bg-cyan-500/10')
-                                : 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
-                        }`}
-                    >
-                        {diff}
-                    </button>
-                ))}
+                {(Object.values(Difficulty) as Difficulty[]).map((diff) => {
+                    let keyHint = '';
+                    if (diff === Difficulty.EASY) keyHint = '1';
+                    if (diff === Difficulty.NORMAL) keyHint = '2';
+                    if (diff === Difficulty.HARD) keyHint = '3';
+                    
+                    return (
+                        <button
+                            key={diff}
+                            onClick={() => setDifficulty(diff)}
+                            className={`px-3 py-1 text-[10px] md:text-xs font-orbitron font-bold tracking-wider border rounded-full transition-all group relative overflow-hidden ${
+                                difficulty === diff 
+                                    ? (diff === Difficulty.HARD ? 'border-red-500 text-red-400 bg-red-500/10' : diff === Difficulty.EASY ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-cyan-500 text-cyan-400 bg-cyan-500/10')
+                                    : 'border-white/10 text-white/65 hover:border-white/30 hover:text-white/60'
+                            }`}
+                        >
+                            {diff}
+                            {keyHint && <span className="hidden md:inline-block ml-1 opacity-60 text-[8px]">[{keyHint}]</span>}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* ランキングリスト */}

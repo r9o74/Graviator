@@ -14,6 +14,7 @@ function App() {
     const [gameStats, setGameStats] = useState<GameStats | null>(null);
     const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(Difficulty.NORMAL);
     const [showItemGuide, setShowItemGuide] = useState(false);
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
     // 直前にプレイした（または選択された）モードを記憶
     const [lastGameMode, setLastGameMode] = useState<GameMode>(GameMode.SURVIVAL);
     
@@ -161,21 +162,30 @@ function App() {
             // 1. アイテムガイド表示中の処理（最優先）
             // ガイドが表示されている場合は、Backspace または i キーで閉じる
             if (showItemGuide) {
-                if (e.code === 'Backspace' || e.key.toLowerCase() === 'i') {
+                if (e.code === 'Backspace' || e.key.toLowerCase() === 'i' || e.code === 'Escape') {
                     setShowItemGuide(false);
                     e.preventDefault();
                 }
                 return; // ガイド表示中は他のショートカットを無効化
             }
 
-            // 2. グローバルショートカット（難易度変更）: メニューまたはリザルト画面
+            // 2. ランキング表示中の処理
+            if (showLeaderboard) {
+                if (e.code === 'Backspace' || e.key.toLowerCase() === 'r' || e.code === 'Escape') {
+                    setShowLeaderboard(false);
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            // 3. グローバルショートカット（難易度変更）: メニューまたはリザルト画面
             if (gameState === GameState.MENU || gameState === GameState.GAME_OVER || gameState === GameState.VICTORY) {
                 if (e.key === '1') { setSelectedDifficulty(Difficulty.EASY); return; }
                 if (e.key === '2') { setSelectedDifficulty(Difficulty.NORMAL); return; }
                 if (e.key === '3') { setSelectedDifficulty(Difficulty.HARD); return; }
             }
 
-            // 3. 各ゲーム状態ごとの処理
+            // 4. 各ゲーム状態ごとの処理
             switch (gameState) {
                 case GameState.MENU:
                     if (e.key.toLowerCase() === 's') handleStart(GameMode.SURVIVAL, selectedDifficulty);
@@ -183,6 +193,7 @@ function App() {
                     else if (e.key.toLowerCase() === 't') handleStart(GameMode.TUTORIAL, Difficulty.EASY);
                     else if (e.code === 'Space' || e.code === 'Enter') handleStart(lastGameMode, selectedDifficulty);
                     else if (e.key.toLowerCase() === 'i') setShowItemGuide(true);
+                    else if (e.key.toLowerCase() === 'r') setShowLeaderboard(true);
                     break;
 
                 case GameState.PLAYING:
@@ -198,6 +209,7 @@ function App() {
                     if (e.code === 'Space' || e.code === 'Enter') handleResume();
                     else if (e.code === 'Backspace') handleHome();
                     else if (e.key.toLowerCase() === 'i') setShowItemGuide(true);
+                    else if (e.key.toLowerCase() === 'r') setShowLeaderboard(true);
                     break;
 
                 case GameState.GAME_OVER:
@@ -206,13 +218,14 @@ function App() {
                     else if (e.key.toLowerCase() === 'e') handleStart(GameMode.ENDLESS, selectedDifficulty);
                     else if (e.code === 'Space' || e.code === 'Enter') handleStart(lastGameMode, selectedDifficulty);
                     else if (e.code === 'Backspace') handleHome();
+                    else if (e.key.toLowerCase() === 'r') setShowLeaderboard(true);
                     break;
             }
         };
 
         window.addEventListener('keydown', handleShortcut);
         return () => window.removeEventListener('keydown', handleShortcut);
-    }, [gameState, selectedDifficulty, lastGameMode, showItemGuide]);
+    }, [gameState, selectedDifficulty, lastGameMode, showItemGuide, showLeaderboard]);
 
     // ゲーム状態が変わった時（ジョイスティック表示の切り替えなど）にリサイズを実行
     useEffect(() => {
@@ -303,6 +316,8 @@ function App() {
                 setSelectedDifficulty={setSelectedDifficulty}
                 showItemGuide={showItemGuide}
                 setShowItemGuide={setShowItemGuide}
+                showLeaderboard={showLeaderboard}
+                setShowLeaderboard={setShowLeaderboard}
                 userId={userId}
                 dbStatus={dbStatus}
             />

@@ -13,6 +13,8 @@ interface MenuOverlayProps {
     setSelectedDifficulty: (diff: Difficulty) => void;
     showItemGuide: boolean;
     setShowItemGuide: (show: boolean) => void;
+    showLeaderboard: boolean;
+    setShowLeaderboard: (show: boolean) => void;
     userId?: string | null;
     dbStatus?: 'checking' | 'connected' | 'error' | 'offline';
 }
@@ -27,11 +29,12 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     setSelectedDifficulty,
     showItemGuide,
     setShowItemGuide,
+    showLeaderboard,
+    setShowLeaderboard,
     userId,
     dbStatus
 }) => {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
-    const [showLeaderboard, setShowLeaderboard] = useState(false);
 
     // 背景アニメーション用のマウス位置追跡
     useEffect(() => {
