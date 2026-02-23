@@ -63,4 +63,5 @@ export interface ScoreRecord {
     difficulty: Difficulty;
     score: number;
     created_at: string;
+    user_name?: string;
 }

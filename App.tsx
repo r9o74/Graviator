@@ -15,6 +15,7 @@ function App() {
     const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(Difficulty.NORMAL);
     const [showItemGuide, setShowItemGuide] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     // 直前にプレイした（または選択された）モードを記憶
     const [lastGameMode, setLastGameMode] = useState<GameMode>(GameMode.SURVIVAL);
     
@@ -26,6 +27,8 @@ function App() {
 
     // スコア重複保存防止用
     const lastSavedRef = useRef<{mode: GameMode, difficulty: Difficulty, date: number} | null>(null);
+
+    const [userName, setUserName] = useState<string>(localStorage.getItem('graviator_name') || 'Player');
 
     useEffect(() => {
         const initAuth = async () => {
@@ -100,7 +103,7 @@ function App() {
             // スコア: サバイバルは生存時間、エンドレスはキル数
             const score = gameStats.mode === GameMode.SURVIVAL ? gameStats.timeSurvived : gameStats.kills;
             
-            saveScore(userId, gameStats.mode, gameStats.difficulty, score);
+            saveScore(userId, gameStats.mode, gameStats.difficulty, score, userName);
             
             // 保存記録更新
             lastSavedRef.current = { mode: gameStats.mode, difficulty: gameStats.difficulty, date: now };
@@ -198,14 +201,23 @@ function App() {
                 return;
             }
 
-            // 3. グローバルショートカット（難易度変更）: メニューまたはリザルト画面
+            // 3. 設定画面表示中の処理
+            if (showSettings) {
+                if (e.code === 'Escape') {
+                    setShowSettings(false);
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            // 4. グローバルショートカット（難易度変更）: メニューまたはリザルト画面
             if (gameState === GameState.MENU || gameState === GameState.GAME_OVER || gameState === GameState.VICTORY) {
                 if (e.key === '1') { setSelectedDifficulty(Difficulty.EASY); return; }
                 if (e.key === '2') { setSelectedDifficulty(Difficulty.NORMAL); return; }
                 if (e.key === '3') { setSelectedDifficulty(Difficulty.HARD); return; }
             }
 
-            // 4. 各ゲーム状態ごとの処理
+            // 5. 各ゲーム状態ごとの処理
             switch (gameState) {
                 case GameState.MENU:
                     if (e.key.toLowerCase() === 's') handleStart(GameMode.SURVIVAL, selectedDifficulty);
@@ -245,7 +257,7 @@ function App() {
 
         window.addEventListener('keydown', handleShortcut);
         return () => window.removeEventListener('keydown', handleShortcut);
-    }, [gameState, selectedDifficulty, lastGameMode, showItemGuide, showLeaderboard]);
+    }, [gameState, selectedDifficulty, lastGameMode, showItemGuide, showLeaderboard, showSettings]);
 
     // ゲーム状態が変わった時（ジョイスティック表示の切り替えなど）にリサイズを実行
     useEffect(() => {
@@ -338,6 +350,10 @@ function App() {
                 setShowItemGuide={setShowItemGuide}
                 showLeaderboard={showLeaderboard}
                 setShowLeaderboard={setShowLeaderboard}
+                showSettings={showSettings}
+                setShowSettings={setShowSettings}
+                userName={userName}
+                setUserName={setUserName}
                 userId={userId}
                 dbStatus={dbStatus}
             />

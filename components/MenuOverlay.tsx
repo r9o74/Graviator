@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GameState, GameMode, GameStats, Difficulty } from '../types';
 import { ItemGuide } from './ItemGuide';
 import { Leaderboard } from './Leaderboard';
+import { SettingsModal } from './SettingsModal';
 import { signInWithGoogle, signOut } from '../lib/supabase';
 
 interface MenuOverlayProps {
@@ -16,6 +17,10 @@ interface MenuOverlayProps {
     setShowItemGuide: (show: boolean) => void;
     showLeaderboard: boolean;
     setShowLeaderboard: (show: boolean) => void;
+    showSettings?: boolean;
+    setShowSettings?: (show: boolean) => void;
+    userName?: string;
+    setUserName?: (name: string) => void;
     userId?: string | null;
     dbStatus?: 'checking' | 'connected' | 'error' | 'offline';
 }
@@ -32,6 +37,10 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     setShowItemGuide,
     showLeaderboard,
     setShowLeaderboard,
+    showSettings = false,
+    setShowSettings,
+    userName = 'Player',
+    setUserName,
     userId,
     dbStatus
 }) => {
@@ -165,10 +174,16 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                             currentMode={gameStats?.mode}
                             currentDifficulty={selectedDifficulty}
                         />
+                    ) : showSettings && setShowSettings && setUserName ? (
+                        <SettingsModal 
+                            onClose={() => setShowSettings(false)}
+                            userName={userName}
+                            setUserName={setUserName}
+                        />
                     ) : (
                         <>
                             <div className="mt-7 landscape:mt-0 md:mt-0 mb-6 md:mb-6 relative z-10">
-                                <h1 className={`text-4xl landscape:text-6xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
+                                <h1 className={`text-4xl landscape:text-5xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
                                 {gameStats && !isMenu && (
                                     <div className="mt-1">
                                         <span className="inline-block py-0.5 px-3 rounded-full text-[10px] md:text-[12px] font-orbitron font-bold tracking-[0.2em] bg-white/5 text-white/40">
@@ -237,23 +252,24 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                             RANKING
                                         </button>
 
-                                        {/* 簡易的な判定: 匿名ユーザーは is_anonymous フラグなどを確認するのが確実ですが、今回はボタンを切り替えます */}
                                         <button 
                                             onClick={signInWithGoogle} 
                                             className="flex-1 py-2 text-white/80 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-blue-600/30 rounded-xl md:rounded-2xl border border-blue-500/50 hover:bg-blue-600/50"
                                         >
                                             LOGIN
                                         </button>
-                                        
-                                        {/* 開発・テスト用にログアウトボタンも用意する場合
+
+                                        {/* 設定ボタン（歯車アイコン） */}
                                         <button 
-                                            onClick={signOut} 
-                                            className="ml-2 py-2 text-white/40 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 rounded-xl md:rounded-2xl border border-white/5 hover:bg-red-500/30 hover:border-red-500/50"
+                                            onClick={() => setShowSettings && setShowSettings(true)}
+                                            className="px-3 py-2 text-white/80 hover:text-white transition-all bg-white/5 hover:bg-white/20 rounded-xl md:rounded-2xl border border-white/5 hover:border-white/30 flex items-center justify-center"
+                                            title="Settings"
                                         >
-                                            LOGOUT
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
                                         </button>
-                                        */}
-                                        
                                     </div>
                                 )}
                                 {/* ★追加ここまで */}

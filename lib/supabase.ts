@@ -39,7 +39,7 @@ export const supabase = isSupabaseConfigured
       } as any;
 
 // スコアを保存する
-export const saveScore = async (userId: string, mode: GameMode, difficulty: Difficulty, score: number) => {
+export const saveScore = async (userId: string, mode: GameMode, difficulty: Difficulty, score: number, userName: string) => {
     if (!isSupabaseConfigured) return;
     
     // チュートリアルは保存しない
@@ -49,7 +49,7 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
         const { error } = await supabase
             .from('scores')
             .insert([
-                { user_id: userId, game_mode: mode, difficulty: difficulty, score: score }
+                { user_id: userId, game_mode: mode, difficulty: difficulty, score: score, user_name: userName}
             ]);
         
         if (error) console.error('Error saving score:', error);
