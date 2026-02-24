@@ -127,8 +127,9 @@ function App() {
             
             // スコア: サバイバルは生存時間、エンドレスはキル数
             const score = gameStats.mode === GameMode.SURVIVAL ? gameStats.timeSurvived : gameStats.kills;
+            const currentName = userName.trim() !== '' ? userName : '';
             
-            saveScore(userId, gameStats.mode, gameStats.difficulty, score, userName);
+            saveScore(userId, gameStats.mode, gameStats.difficulty, score, currentName);
             
             // 保存記録更新
             lastSavedRef.current = { mode: gameStats.mode, difficulty: gameStats.difficulty, date: now };
