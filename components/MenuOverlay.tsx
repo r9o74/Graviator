@@ -84,7 +84,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
         blobColor = "bg-white-600";
     } else if (isVictory) {
         title = "GAME CLEAR";
-        subtitle = "YOU ARE THE LAST SURVIVOR!";
+        subtitle = "";
         colorClass = "text-emerald-400";
         blobColor = "bg-emerald-500";
     } else if (isPaused) {
@@ -192,6 +192,14 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                     </div>
                                 )}
                                 <p className="text-white/40 font-rajdhani tracking-[0.3em] text-[10px] md:text-sm uppercase mt-1 md:mt-2">{subtitle}</p>
+                                {isVictory && currentMode === GameMode.SURVIVAL && gameStats && (
+                                    <div className="mt-2 md:mt-4">
+                                        <p className="text-emerald-400/80 font-orbitron text-[10px] md:text-xs tracking-[0.2em] uppercase">CLEAR TIME</p>
+                                        <p className="text-white font-orbitron text-2xl md:text-4xl font-bold tracking-widest" style={{ textShadow: '0 0 20px rgba(52, 211, 153, 0.6)' }}>
+                                            {gameStats.timeSurvived.toFixed(2)}<span className="text-sm md:text-lg ml-1 text-emerald-400">s</span>
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             {isMenu && (

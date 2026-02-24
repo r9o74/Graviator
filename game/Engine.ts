@@ -1536,7 +1536,10 @@ export class GameEngine {
             if (playerTotalGravityForce > this.maxGravityRecorded) this.maxGravityRecorded = playerTotalGravityForce;
         }
         const enemiesLeft = this.entities.filter(e => e.isCpu).length;
-        if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING && this.spawnWarnings.length === 0) this.setGameState(GameState.VICTORY);
+        if (this.gameMode === GameMode.SURVIVAL && player && enemiesLeft === 0 && this.gameState === GameState.PLAYING && this.spawnWarnings.length === 0) {
+            this.emitStats(playerTotalGravityForce);
+            this.setGameState(GameState.VICTORY);
+        }
         this.frameCount++;
         if (this.onStatsUpdate && player && this.frameCount % 5 === 0) {
              this.emitStats(playerTotalGravityForce);
