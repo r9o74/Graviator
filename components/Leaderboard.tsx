@@ -151,13 +151,15 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                                     </td>
                                     <td className="py-3 text-white/70">
                                         {/* record.user_name があれば表示、なければIDを表示 */}
-                                        {record.user_name || (
+                                        {record.user_name && record.user_name.toLowerCase() !== 'player' ? (
+                                            record.user_name
+                                        ) : (
                                             <>
                                                 <span className="font-mono text-white/30">User-</span>
                                                 {record.user_id.slice(0, 8)}...
                                             </>
                                         )}
-                                    </td>
+                                    </td>    
                                     <td className="py-3 text-right text-white/30 text-[10px]">
                                         {formatDate(record.created_at)}
                                     </td>

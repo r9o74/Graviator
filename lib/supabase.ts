@@ -117,20 +117,23 @@ export const signOut = async () => {
 // lib/supabase.ts
 
 // プロフィール（名前）を保存または更新する
-export const updateProfile = async (userId: string, displayName: string) => {
+export const updateProfile = async (userId: string, displayName: string | null) => {
     if (!isSupabaseConfigured) return;
     try {
+        const nameToSave = (displayName && displayName.trim() !== '') ? displayName : null;
         const { error: profileError } = await supabase
             .from('profiles')
             .upsert({ 
                 id: userId, 
-                display_name: displayName, 
+                display_name: nameToSave, 
                 updated_at: new Date() 
             });
         if (profileError) throw profileError;
+
+        // スコアテーブルのユーザー名も更新する
         const { error: scoresError } = await supabase
             .from('scores')
-            .update({ user_name: displayName })
+            .update({ user_name: nameToSave })
             .eq('user_id', userId);
         
         if (scoresError) throw scoresError;
