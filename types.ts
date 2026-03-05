@@ -53,6 +53,8 @@ export interface GameStats {
     kills: number;           // 撃破数
     tutorialMessage?: string; // チュートリアル用の指示テキスト
     tutorial_step_show?: string; // チュートリアルのステップ表示 (e.g. "STEP 1/3")
+    highlightJoystick?: boolean; // ジョイスティックをハイライトするか
+    highlightItem?: boolean;     // アイテムをハイライトするか（今回は使わないかもしれないが念のため）
 }
 
 // DBに保存するスコアレコード

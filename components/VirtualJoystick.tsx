@@ -5,11 +5,12 @@ import { InputState } from '../types';
 
 interface VirtualJoystickProps {
     onInput: (input: InputState) => void;
+    highlight?: boolean;
 }
 
 // タッチ操作用のアナログスティックコンポーネント
 // 指定されたエリア内でのタッチ開始を検知し、ドラッグ操作は画面全体で追従する
-const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
+const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput, highlight = false }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [active, setActive] = useState(false);
     const [origin, setOrigin] = useState({ x: 0, y: 0 }); // タッチ開始位置
@@ -156,12 +157,12 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput }) => {
             <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${active ? 'opacity-30' : 'opacity-100'}`}>
                  <div className="flex flex-col items-center">
                     {/* ガイド用の外枠 */}
-                    <div className="w-24 h-24 rounded-full border border-white/10 bg-white/5 flex items-center justify-center relative">
-                        <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center animate-pulse">
+                    <div className={`w-24 h-24 rounded-full border flex items-center justify-center relative transition-all duration-500 ${highlight ? 'border-cyan-400 bg-cyan-500/20 shadow-[0_0_30px_rgba(34,211,238,0.5)] animate-pulse' : 'border-white/10 bg-white/5'}`}>
+                        <div className={`w-12 h-12 rounded-full border flex items-center justify-center ${highlight ? 'border-cyan-400/50' : 'border-white/10 animate-pulse'}`}>
                             <div className="w-2 h-2 bg-cyan-400/30 rounded-full"></div>
                         </div>
                     </div>
-                    <span className="mt-2 text-[10px] md:text-xs text-cyan-500/40 font-mono tracking-widest uppercase text-center">
+                    <span className={`mt-2 text-[10px] md:text-xs font-mono tracking-widest uppercase text-center transition-colors duration-300 ${highlight ? 'text-cyan-400 font-bold' : 'text-cyan-500/40'}`}>
                         Swipe to Move
                     </span>
                  </div>

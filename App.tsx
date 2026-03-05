@@ -4,6 +4,7 @@ import { GameState, InputState, GameStats, GameMode, Difficulty } from './types'
 import MenuOverlay from './components/MenuOverlay';
 import InfoPanel from './components/InfoPanel';
 import VirtualJoystick from './components/VirtualJoystick';
+import { TutorialOverlay } from './components/TutorialOverlay';
 import { supabase, isSupabaseConfigured, saveScore, getProfile, updateProfile } from './lib/supabase';
 
 function App() {
@@ -327,7 +328,7 @@ function App() {
                     {/* 横画面用ジョイスティックエリア (プレイ中のみ、残りのスペースを使用) */}
                     {gameState === GameState.PLAYING && (
                         <div className="hidden landscape:flex flex-1 relative bg-[#050510] border-t border-white/10 w-full min-h-0">
-                            <VirtualJoystick onInput={handleJoystickInput} />
+                            <VirtualJoystick onInput={handleJoystickInput} highlight={gameStats?.highlightJoystick} />
                         </div>
                     )}
                 </div>
@@ -359,8 +360,17 @@ function App() {
             {/* DOMフロー内に配置され、親のflexコンテナにより上部エリアの高さを減らす */}
             {gameState === GameState.PLAYING && (
                 <div className="h-48 shrink-0 border-t border-white/10 bg-[#050510] relative z-30 landscape:hidden w-full">
-                    <VirtualJoystick onInput={handleJoystickInput} />
+                    <VirtualJoystick onInput={handleJoystickInput} highlight={gameStats?.highlightJoystick} />
                 </div>
+            )}
+
+            {/* チュートリアルオーバーレイ */}
+            {gameState === GameState.PLAYING && gameStats?.mode === GameMode.TUTORIAL && (
+                <TutorialOverlay 
+                    key={`${gameStats.tutorial_step_show}-${gameStats.tutorialMessage}`}
+                    step={gameStats.tutorial_step_show || "TUTORIAL"}
+                    message={gameStats.tutorialMessage || "Loading..."}
+                />
             )}
 
             {/* フルスクリーンメニューレイヤー */}
