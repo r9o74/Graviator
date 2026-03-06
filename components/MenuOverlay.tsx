@@ -4,6 +4,7 @@ import { ItemGuide } from './ItemGuide';
 import { Leaderboard } from './Leaderboard';
 import { SettingsModal } from './SettingsModal';
 import { signInWithGoogle, signOut } from '../lib/supabase';
+import { TIPS_DATA } from '../constants/tips';
 
 interface MenuOverlayProps {
     gameState: GameState;
@@ -63,6 +64,15 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
             setSelectedDifficulty(gameStats.difficulty);
         }
     }, [gameStats, gameState, setSelectedDifficulty]);
+
+    // tips表示
+    const [tips_sentence, setTipsSentence] = useState('');
+    useEffect(() => {
+        if (gameState !== GameState.PLAYING) {
+            const randomIndex = Math.floor(Math.random() * TIPS_DATA.length);
+            setTipsSentence(TIPS_DATA[randomIndex]);
+        }
+    }, [gameState])
 
     if (gameState === GameState.PLAYING) return null;
 
@@ -292,6 +302,10 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                         </button>
                                     </div>
                                 )}
+
+                                <div className="flex gap-2 mt-2 mx-auto text-center text-white/80 hover:text-white font-orbitron font-light text-[8px] md:text-[8px]">
+                                    ヒント： {tips_sentence}
+                                </div>
                             </div>
                         </>
                     )}
