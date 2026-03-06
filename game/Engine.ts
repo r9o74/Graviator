@@ -1,657 +1,68 @@
 import { Vector2 } from './Vector2.ts';
-import { InputState, GameState, GameStats, GameMode, Difficulty } from '../types.ts';
+import { InputState, GameState, GameStats, GameMode, Difficulty, ItemType } from '../types.ts';
 
-// デバイス検知（モバイルかどうかの判定）
-const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+import {
+    IS_MOBILE,
+    PLAYER_RADIUS, ENTITY_MASS, DEFAULT_GRAVITY_CONSTANT, DEFAULT_CPU_THRUST_FORCE, DEFAULT_ENEMY_NUMBER_SURVIVAL,
+    GRAVITY_MAX, THRUST_FORCE, BREAKING_CONSTANT, WALL_MARGIN, BREAK_BOOST, SAFE_DISTANCE, DIST_EXP,
+    G_LINE_WIDTH, TRAIL_WIDTH, FRICTION, FRICTION_VEL_EXP, BASE_LOGICAL_SIZE, TRAIL_LENGTH,
+    COLOR_PLAYER, COLOR_ENEMY, COLOR_PARTICLE, COLOR_ITEM_MASS, COLOR_ITEM_SATELLITE, COLOR_ITEM_STEALTH,
+    COLOR_ITEM_WAVE, COLOR_ITEM_INVERSION, COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE,
+    PARTICLE_PHYSICAL_RADIUS, LABEL_PHYSICAL_FONT_SIZE,
+    ITEM_RADIUS, ITEM_AREA_RADIUS, ITEM_SPAWN_START_DELAY, ITEM_SPAWN_INTERVAL_MIN, ITEM_SPAWN_INTERVAL_MAX,
+    item_ratio,
+    POWERUP_DURATION, MASS_BOOST_MULTIPLIER,
+    SATELLITE_MASS, SATELLITE_RADIUS, SATELLITE_THRUST, SATELLITE_NUM, SATELLITE_TRAIL_LENGTH,
+    STEALTH_FADE_DURATION, STEALTH_INVIS_DURATION, STEALTH_TOTAL_DURATION, GRAVITY_REDUCTION,
+    WAVE_SPEED, WAVE_FORCE, WAVE_DURATION, WAVE_INTERVAL, WAVE_MAX_RADIUS,
+    INVERSION_DURATION, INVERSION_MULTIPLE_1, INVERSION_MULTIPLE_2,
+    REPULSIVE_TRAIL_DURATION, REPULSIVE_TRAIL_RESTITUTION, REPULSIVE_TRAIL_RESTITUTION_TAN, TRAIL_LENGTH_EXTENDED,
+    CAPTURE_DURATION, CAPTURE_RADIUS, CAPTURE_TIME_MASS, CAPTURE_TIME_STEALTH, CAPTURE_TIME_INVERSION,
+    CAPTURE_TIME_TRAIL, CAPTURE_TIME_WAVE, CAPTURE_TIME_RAMJET,
+    RAMJET_DURATION, RAMJET_FRONT_GAIN, RAMJET_REAR_GAIN, COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR
+} from '../constants/gameConfig.ts';
 
-// --- ゲーム定数定義 ---
-// 物理演算やゲームバランスに関わるパラメータ
-const PLAYER_RADIUS = 12.0;           // プレイヤーの半径
-const ENTITY_MASS = 10.0;             // 基本質量
-// 以下の値はデフォルト値として保持し、難易度によってクラス内でオーバーライドされる
-const DEFAULT_GRAVITY_CONSTANT = 40000.0;     
-const DEFAULT_CPU_THRUST_FORCE = 1800.0;      
-const DEFAULT_ENEMY_NUMBER_SURVIVAL = 10;     
-
-const GRAVITY_MAX = 250000.0;         // 重力の最大値制限（特異点回避）
-const THRUST_FORCE = 1800.0;          // プレイヤーの推進力
-const BREAKING_CONSTANT = 3.5;        // 壁際などでの減速係数
-const WALL_MARGIN = 150;              // 壁からの危険エリア距離
-const BREAK_BOOST = 25;               // 減速力のブースト係数
-const SAFE_DISTANCE = 200;            // スポーン時の安全距離
-const DIST_EXP = 0.88;                // 引力計算の距離の指数（1.0で物理的に正しい逆二乗則に近い挙動だが、ゲーム用に調整）
-const G_LINE_WIDTH = 1;               // 重力結合線の描画幅
-const TRAIL_WIDTH = PLAYER_RADIUS / 1.8; // 軌跡の幅
-const FRICTION = 0.100;               // 空間摩擦係数
-const FRICTION_VEL_EXP = 0.0;         // 摩擦の速度依存指数
-
-
-const BASE_LOGICAL_SIZE = IS_MOBILE ? 800 : 700; // 画面サイズの基準値
-
-const TRAIL_LENGTH = 70;             // 軌跡の長さ
-// カラーパレット
-const COLOR_PLAYER = '#00F0FF';       // シアン（プレイヤー）
-const COLOR_ENEMY = '#FF0055';        // マゼンタ（敵）
-const COLOR_PARTICLE = '#FFFFFF';     // パーティクル基本色
-const COLOR_ITEM_MASS = '#FFD700';    // 質量増加（金）
-const COLOR_ITEM_SATELLITE = '#E0E0E0'; // 衛星（白銀）
-const COLOR_ITEM_STEALTH = '#646464'; // 透明化（灰）
-const COLOR_ITEM_WAVE = '#BF40BF';    // 重力波（紫）
-const COLOR_ITEM_INVERSION = '#32CD32'; // 反転（緑）
-const COLOR_ITEM_REPULSIVE = '#FF3300'; // 軌斥（赤）
-const COLOR_ITEM_CAPTURE = '#FF8C00';   // 強奪（ダークオレンジ）
-
-const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ（基準値）
-const LABEL_PHYSICAL_FONT_SIZE = 14;  // ラベルフォントサイズ
-
-// アイテムスポーン設定
-const ITEM_RADIUS = 15; 
-const ITEM_AREA_RADIUS = 30; 
-const ITEM_SPAWN_START_DELAY = 3.0; 
-const ITEM_SPAWN_INTERVAL_MIN = 2.0;
-const ITEM_SPAWN_INTERVAL_MAX = 4.0;
+import { GravityWave } from './effects/GravityWave.ts';
+import { VisualWave } from './effects/VisualWave.ts';
+import { Particle } from './entities/Particle.ts';
+import { Item } from './entities/Item.ts';
+import { Entity, Point } from './entities/Entity.ts';
 
 
-// アイテム出現比率
-// 質量増加：衛星：透明化：重力波：反転：軌斥：強奪
-const item_ratio = [1, 1, 1, 1, 1, 1, 1]; 
 
 
-// --- アイテム効果パラメータ ---
-// 質量増加
-const POWERUP_DURATION = 6.0;
-const MASS_BOOST_MULTIPLIER = 7.0;
-
-// 衛星
-const SATELLITE_MASS = 10.0;
-const SATELLITE_RADIUS = 6.0;
-const SATELLITE_THRUST = 3000.0;
-const SATELLITE_NUM = 7;
-const SATELLITE_TRAIL_LENGTH = 50;
-
-// 透明化
-const STEALTH_FADE_DURATION = 1.0;
-const STEALTH_INVIS_DURATION = 8.0; 
-const STEALTH_TOTAL_DURATION = STEALTH_FADE_DURATION * 2 + STEALTH_INVIS_DURATION;
-const GRAVITY_REDUCTION = 0.30; // 重力影響の軽減率
-
-// 重力波
-const WAVE_SPEED = 700.0;
-const WAVE_FORCE = 45000.0;
-const WAVE_DURATION = 0.15;
-const WAVE_INTERVAL = 1.0;
-const WAVE_MAX_RADIUS = 600.0;
-
-// 反転
-const INVERSION_DURATION = 7.0;
-const INVERSION_MULTIPLE_1 = 5.0;  // 自分 -> 敵 への斥力倍率
-const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分 への斥力倍率
-
-// 軌斥 (Repulsive Trail)
-const REPULSIVE_TRAIL_DURATION = 7.0;
-const REPULSIVE_TRAIL_RESTITUTION = 2.0; // 法線方向反発係数
-const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.5; // 接線方向反発係数
-const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ（壁を作るため長くする）
-
-// 強奪 (Capture)
-const CAPTURE_DURATION = 8.0;
-const CAPTURE_RADIUS = 100.0;
-// 各効果ごとの強奪所要時間
-const CAPTURE_TIME_MASS = 0.3;
-const CAPTURE_TIME_STEALTH = 0.6;
-const CAPTURE_TIME_INVERSION = 0.3;
-const CAPTURE_TIME_TRAIL = 0.3;
-const CAPTURE_TIME_WAVE = 0.05;
 
 
-// アイテムの種類定義
-export enum ItemType {
-    MASS_BOOST,      // 質量増加
-    SATELLITE,       // 衛星
-    INVISIBILITY,    // 透明化
-    GRAVITY_WAVE,    // 重力波
-    INVERSION,       // 引力反転
-    REPULSIVE_TRAIL, // 斥力トレイル
-    CAPTURE          // 能力強奪
-}
 
-// 軌跡の座標点
-interface Point { x: number; y: number; isRepulsive?: boolean; }
-// 出現警告マーカー
-interface SpawnWarning { x: number; y: number; timer: number; isPlayer?: boolean; }
 
-// 重力波クラス（物理影響あり）
-class GravityWave {
-    origin: Vector2;
-    radius: number = 0;
-    owner: Entity;
-    hitEntities: Set<Entity> = new Set(); // 既にヒットしたエンティティを記録
-    life: number = 1.0;
 
-    constructor(x: number, y: number, owner: Entity) {
-        this.origin = new Vector2(x, y);
-        this.owner = owner;
-    }
 
-    // 波の更新と衝突判定
-    update(dt: number, entities: Entity[]) {
-        this.radius += WAVE_SPEED * dt;
-        this.life = 1.0 - (this.radius / WAVE_MAX_RADIUS);
-        if (this.life <= 0) return;
 
-        for (const entity of entities) {
-            // 自分や所有者は除外、既に当たったものも除外
-            if (entity === this.owner || entity.owner === this.owner || this.hitEntities.has(entity)) continue;
-            
-            const dx = entity.pos.x - this.origin.x;
-            const dy = entity.pos.y - this.origin.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
 
-            // 波の半径付近にいるエンティティに力を加える
-            if (Math.abs(dist - this.radius) < 20) {
-                const angle = Math.atan2(dy, dx);
-                const dir = new Vector2(Math.cos(angle), Math.sin(angle));
-                const decay = Math.max(0.2, this.life);
-                
-                // 反転状態なら引き寄せる、通常なら弾き飛ばす
-                const forceMagnitude = entity.isInversionActive() ? -WAVE_FORCE : WAVE_FORCE;
-                
-                entity.waveForce = dir.scale(forceMagnitude * decay);
-                entity.waveForceTimer = WAVE_DURATION;
-                this.hitEntities.add(entity);
-            }
-        }
-    }
 
-    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        if (this.life <= 0) return;
-        ctx.save();
-        const color = '191, 64, 191';
-        // 波の描画
-        ctx.beginPath();
-        ctx.arc(this.origin.x, this.origin.y, Math.max(0, this.radius), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${color}, ${Math.min(this.life * 1.2, 0.8)})`;
-        ctx.lineWidth = 10 / scaleFactor;
-        ctx.stroke();
-        // 内側の波
-        const innerRadius = this.radius - 15;
-        if (innerRadius > 0) {
-            ctx.beginPath();
-            ctx.arc(this.origin.x, this.origin.y, innerRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(${color}, ${this.life * 0.3})`;
-            ctx.lineWidth = 4 / scaleFactor;
-            ctx.stroke();
-        }
-        ctx.restore();
-    }
-}
 
-// 物理判定のない視覚的のみの波（エフェクト用）
-class VisualWave {
-    origin: Vector2;
-    radius: number = 0;
-    maxRadius: number = 150;
-    color: string;
-    life: number = 1.0;
-    speed: number = 400.0;
 
-    constructor(x: number, y: number, color: string) {
-        this.origin = new Vector2(x, y);
-        this.color = color;
-    }
 
-    update(dt: number) {
-        this.radius += this.speed * dt;
-        this.life = 1.0 - (this.radius / this.maxRadius);
-    }
 
-    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        if (this.life <= 0) return;
-        ctx.save();
-        
-        ctx.beginPath();
-        ctx.arc(this.origin.x, this.origin.y, Math.max(0, this.radius), 0, Math.PI * 2);
-        ctx.strokeStyle = this.color;
-        ctx.globalAlpha = Math.max(0, this.life * 1.2);
-        ctx.lineWidth = 5 / scaleFactor;
-        ctx.stroke();
-        // ...
-        ctx.restore();
-    }
-}
 
-// パーティクルクラス（エフェクト）
-class Particle {
-    pos: Vector2;
-    vel: Vector2;
-    life: number;
-    maxLife: number;
-    color: string;
-    sizeMultiplier: number;
 
-    constructor(x: number, y: number, vel: Vector2, color: string = COLOR_PARTICLE, lifeMultiplier: number = 1.0, sizeMultiplier: number = 1.0) {
-        this.pos = new Vector2(x, y);
-        this.vel = vel;
-        this.life = 1.0;
-        this.maxLife = (0.2 + Math.random() * 0.4) * lifeMultiplier;
-        this.color = color;
-        this.sizeMultiplier = sizeMultiplier;
-    }
-    update(dt: number) {
-        this.pos.x += this.vel.x * dt;
-        this.pos.y += this.vel.y * dt;
-        this.life -= dt / this.maxLife;
-    }
-    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        if (this.life <= 0.01) return;
-        ctx.globalAlpha = Math.max(0, this.life) * 0.9;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        const radius = (PARTICLE_PHYSICAL_RADIUS * this.sizeMultiplier) / Math.pow(scaleFactor, 0.7);
-        ctx.arc(this.pos.x, this.pos.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-    }
-}
 
-// アイテムクラス
-export class Item {
-    pos: Vector2;
-    type: ItemType;
-    angle: number = 0; // 回転用
-    constructor(x: number, y: number, type: ItemType) {
-        this.pos = new Vector2(x, y);
-        this.type = type;
-    }
-    update(dt: number) {
-        this.angle += dt * 3;
-    }
-    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        ctx.save();
-        ctx.translate(this.pos.x, this.pos.y);
-        ctx.rotate(this.angle);
-        // アイテムタイプに応じた色と形状の描画
-        let color = COLOR_ITEM_MASS;
-        if (this.type === ItemType.SATELLITE) color = COLOR_ITEM_SATELLITE;
-        else if (this.type === ItemType.INVISIBILITY) color = COLOR_ITEM_STEALTH;
-        else if (this.type === ItemType.GRAVITY_WAVE) color = COLOR_ITEM_WAVE;
-        else if (this.type === ItemType.INVERSION) color = COLOR_ITEM_INVERSION;
-        else if (this.type === ItemType.REPULSIVE_TRAIL) color = COLOR_ITEM_REPULSIVE;
-        else if (this.type === ItemType.CAPTURE) color = COLOR_ITEM_CAPTURE;
-        
-        const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
-        ctx.shadowBlur = 15 + pulse * 10;
-        ctx.shadowColor = color;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        const size = ITEM_RADIUS;
-        if (this.type === ItemType.MASS_BOOST) {
-            ctx.moveTo(0, -size); ctx.lineTo(size * 0.7, 0); ctx.lineTo(0, size); ctx.lineTo(-size * 0.7, 0);
-        } else if (this.type === ItemType.SATELLITE) {
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                const r = size * (0.8 + pulse * 0.1);
-                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
-            }
-        } else if (this.type === ItemType.INVISIBILITY) {
-            for (let i = 0; i < 6; i++) {
-                const angle = (i / 6) * Math.PI * 2;
-                const r = size * (0.6 + pulse * 0.4);
-                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
-            }
-        } else if (this.type === ItemType.GRAVITY_WAVE) {
-             ctx.arc(0, 0, size * (0.5 + pulse * 0.2), 0, Math.PI * 2); ctx.moveTo(size, 0); ctx.arc(0, 0, size, 0, Math.PI * 2);
-        } else if (this.type === ItemType.INVERSION) {
-            ctx.moveTo(0, size); ctx.lineTo(size, -size * 0.6); ctx.lineTo(-size, -size * 0.6);
-        } else if (this.type === ItemType.REPULSIVE_TRAIL) {
-            const spikes = 5;
-            for (let i = 0; i < spikes * 2; i++) {
-                const angle = (i / (spikes * 2)) * Math.PI * 2;
-                const r = size * (i % 2 === 0 ? 1.0 : 0.4);
-                ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
-            }
-        } else if (this.type === ItemType.CAPTURE) {
-            // Hexagon with dot
-            for (let i = 0; i < 6; i++) {
-                const angle = (i / 6) * Math.PI * 2;
-                ctx.lineTo(Math.cos(angle) * size, Math.sin(angle) * size);
-            }
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#000000'; // Hole
-            ctx.beginPath();
-            ctx.arc(0, 0, size * 0.4, 0, Math.PI * 2);
-            ctx.fill();
-            // Restore color for stroke
-            ctx.fillStyle = color;
-        }
-        ctx.closePath(); 
-        if (this.type !== ItemType.CAPTURE) ctx.fill(); 
-        
-        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2 / scaleFactor; ctx.stroke();
-        ctx.restore();
-    }
-}
 
-// エンティティクラス（プレイヤー、敵、衛星など）
-class Entity {
-    pos: Vector2; vel: Vector2; acc: Vector2; 
-    radius: number; mass: number; color: string; 
-    isPlayer: boolean; isCpu: boolean; 
-    breakingValue: number; // 壁際でのブレーキ強度
-    trail: Point[];        // 移動軌跡
-    
-    // バフ・デバフタイマー
-    massMultiplier: number = 1.0;
-    thrustMultiplier: number = 1.0;
-    powerupTimer: number = 0;
-    stealthTimer: number = 0;
-    stealthOpacity: number = 1.0;
-    inversionTimer: number = 0;
-    repulsiveTrailTimer: number = 0;
-    captureTimer: number = 0;
-    
-    // 強奪スキル用
-    captureProgress: Map<Entity, number> = new Map();
-    
-    // 重力波スキル用
-    waveChargeCount: number = 0;
-    waveChargeTimer: number = 0;
-    waveForce: Vector2 = new Vector2(); // 外部から受ける重力波の力
-    waveForceTimer: number = 0;
-    
-    // 衛星用
-    isSatellite: boolean = false;
-    owner: Entity | null = null;
-    
-    constructor(x: number, y: number, isPlayer: boolean, isSatellite: boolean = false, owner: Entity | null = null) {
-        this.pos = new Vector2(x, y); this.vel = new Vector2(); this.acc = new Vector2();
-        this.isSatellite = isSatellite; this.owner = owner;
-        this.radius = isSatellite ? SATELLITE_RADIUS : PLAYER_RADIUS;
-        this.mass = isSatellite ? SATELLITE_MASS : ENTITY_MASS;
-        this.isPlayer = isPlayer; this.isCpu = !isPlayer && !isSatellite;
-        this.color = isSatellite ? '#FFFFFF' : (isPlayer ? COLOR_PLAYER : COLOR_ENEMY);
-        this.breakingValue = 0; this.trail = [];
-    }
-    
-    // 現在の質量（バフ込み）
-    getCurrentMass(): number { return this.mass * this.massMultiplier; }
 
-    // 力を加える（F=ma => a=F/m）
-    applyForce(force: Vector2) {
-        this.acc.x += force.x / this.getCurrentMass();
-        this.acc.y += force.y / this.getCurrentMass();
-    }
 
-    isStealthActive(): boolean { return this.stealthTimer > 0; }
-    isInversionActive(): boolean { return this.inversionTimer > 0; }
-    isCaptureActive(): boolean { return this.captureTimer > 0; }
-    
-    // 敵AIなどがターゲットとして認識できるか
-    isTargetable(): boolean {
-        if (this.isPlayer) return this.stealthTimer <= 0;
-        return this.stealthOpacity > 0.1;
-    }
 
-    update(dt: number) {
-        // タイマー更新処理
-        if (this.powerupTimer > 0) {
-            this.powerupTimer -= dt;
-            if (this.powerupTimer <= 0) { this.massMultiplier = 1.0; this.thrustMultiplier = 1.0; }
-        }
-        if (this.inversionTimer > 0) this.inversionTimer -= dt;
-        if (this.captureTimer > 0) this.captureTimer -= dt;
-        
-        // 斥力トレイル処理
-        if (this.repulsiveTrailTimer > 0) {
-            this.repulsiveTrailTimer -= dt;
-            if (this.repulsiveTrailTimer <= 0) {
-                // 効果終了時、全軌跡の斥力フラグを解除し、軌跡長さを通常に戻す
-                this.repulsiveTrailTimer = 0;
-                this.trail.forEach(p => p.isRepulsive = false);
-                if (this.trail.length > TRAIL_LENGTH) {
-                    this.trail = this.trail.slice(this.trail.length - TRAIL_LENGTH);
-                }
-            }
-        }
 
-        // 透明化処理（フェードイン・アウト）
-        if (this.stealthTimer > 0) {
-            this.stealthTimer -= dt;
-            const elapsed = STEALTH_TOTAL_DURATION - this.stealthTimer;
-            if (this.isPlayer) this.stealthOpacity = 0.30;
-            else {
-                if (elapsed < STEALTH_FADE_DURATION) this.stealthOpacity = 1.0 - (elapsed / STEALTH_FADE_DURATION);
-                else if (this.stealthTimer < STEALTH_FADE_DURATION) this.stealthOpacity = 1.0 - (this.stealthTimer / STEALTH_FADE_DURATION);
-                else this.stealthOpacity = 0;
-            }
-            if (this.stealthTimer <= 0) { this.stealthOpacity = 1.0; this.stealthTimer = 0; }
-        } else { this.stealthOpacity = 1.0; }
-        
-        // 重力波によるノックバック適用
-        if (this.waveForceTimer > 0) { this.applyForce(this.waveForce); this.waveForceTimer -= dt; }
-        
-        // 速度の更新
-        this.vel.x += this.acc.x * dt; 
-        this.vel.y += this.acc.y * dt;
-        
-        // 摩擦（空気抵抗的な減速）
-        const speed = this.vel.length();
-        if (speed > 0) {
-            const frictionForceMagnitude = FRICTION * Math.pow(speed, FRICTION_VEL_EXP);
-            const frictionAccMagnitude = frictionForceMagnitude / this.getCurrentMass();
-            const frictionDecel = frictionAccMagnitude * dt;
-            
-            if (frictionDecel >= speed) {
-                this.vel.x = 0; this.vel.y = 0;
-            } else {
-                const factor = (speed - frictionDecel) / speed;
-                this.vel.x *= factor; this.vel.y *= factor;
-            }
-        }
 
-        // 位置の更新
-        this.pos.x += this.vel.x * dt; 
-        this.pos.y += this.vel.y * dt;
-        
-        // 加速度のリセット
-        this.acc.x = 0; this.acc.y = 0;
-        
-        // 軌跡の更新
-        const maxLen = this.repulsiveTrailTimer > 0 ? TRAIL_LENGTH_EXTENDED : this.isSatellite ? SATELLITE_TRAIL_LENGTH : TRAIL_LENGTH;
-        if (this.trail.length > maxLen) this.trail.shift();
-        this.trail.push({ 
-            x: this.pos.x, 
-            y: this.pos.y,
-            isRepulsive: this.repulsiveTrailTimer > 0
-        });
-    }
 
-    draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
-        if (this.stealthOpacity <= 0 && this.repulsiveTrailTimer <= 0 && !this.isCaptureActive()) return;
 
-        const isPowered = this.massMultiplier > 1.0;
-        const isInverted = this.isInversionActive();
-        const isCapturing = this.isCaptureActive();
-        
-        // 本体描画：透明度の影響を受ける
-        ctx.save(); 
-        ctx.globalAlpha = this.stealthOpacity;
 
-        const stealthTrailAlpha = this.stealthOpacity;
-        const blurFactor = (this.isPlayer && this.isStealthActive()) ? 0 : 1.0;
 
-        if (this.trail.length > 1 && (stealthTrailAlpha > 0 || this.repulsiveTrailTimer > 0)) {
-            // Normal Trail
-            if (stealthTrailAlpha > 0) {
-                ctx.beginPath();
-                let moved = false;
-                for (let i = 0; i < this.trail.length; i++) {
-                    if (this.trail[i].isRepulsive) {
-                        if (moved) ctx.stroke();
-                        moved = false;
-                        ctx.beginPath(); // Break path
-                        continue; 
-                    }
-                    if (!moved) { ctx.moveTo(this.trail[i].x, this.trail[i].y); moved = true; }
-                    else { ctx.lineTo(this.trail[i].x, this.trail[i].y); }
-                }
-                if (moved) {
-                    const gradient = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.pos.x, this.pos.y);
-                    gradient.addColorStop(0, 'rgba(0,0,0,0)'); 
-                    gradient.addColorStop(1, this.color);
-                    ctx.strokeStyle = gradient; 
-                    ctx.lineWidth = isPowered ? TRAIL_WIDTH * 2 : (this.isSatellite ? TRAIL_WIDTH * 0.8 : TRAIL_WIDTH);
-                    ctx.lineCap = 'round'; 
-                    ctx.lineJoin = 'round'; 
-                    ctx.stroke();
-                }
-            }
 
-            // Repulsive Trail (Red, vibrating)
-            if (this.repulsiveTrailTimer > 0) {
-                ctx.save();
-                ctx.globalAlpha = 1.0; // Repulsive trail is always visible even in stealth
-                ctx.shadowColor = COLOR_ITEM_REPULSIVE;
-                ctx.shadowBlur = 10;
-                ctx.strokeStyle = COLOR_ITEM_REPULSIVE;
-                ctx.lineWidth = TRAIL_WIDTH * 1.5;
-                
-                ctx.beginPath();
-                let rMoved = false;
-                for (let i = 0; i < this.trail.length; i++) {
-                    if (!this.trail[i].isRepulsive) {
-                        if (rMoved) ctx.stroke();
-                        rMoved = false;
-                        ctx.beginPath();
-                        continue;
-                    }
-                    const jitterX = (Math.random() - 0.5) * 3;
-                    const jitterY = (Math.random() - 0.5) * 3;
-                    if (!rMoved) { ctx.moveTo(this.trail[i].x + jitterX, this.trail[i].y + jitterY); rMoved = true; }
-                    else { ctx.lineTo(this.trail[i].x + jitterX, this.trail[i].y + jitterY); }
-                }
-                if (rMoved) ctx.stroke();
-                ctx.restore();
-            }
-        }
-
-        // Capture Range Aura (常に表示)
-        if (isCapturing) {
-            ctx.save();
-            ctx.strokeStyle = COLOR_ITEM_CAPTURE;
-            ctx.lineWidth = 3 / scaleFactor;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            ctx.arc(this.pos.x, this.pos.y, CAPTURE_RADIUS, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.fillStyle = COLOR_ITEM_CAPTURE;
-            ctx.globalAlpha = 0.1;
-            ctx.fill();
-            ctx.restore();
-        }
-
-        if (this.stealthOpacity > 0) {
-            const auraPulse = (Math.sin(Date.now() / 100) + 1) / 2;
-
-            // リング描画（動的調整）
-            const activeEffects = [];
-            // 優先順位: 外側から 質量増加(Mass) -> 反転(Invert) -> 奪取(Capture)
-            // 描画ループで半径を広げていくため、リストには「内側 -> 外側」の順で追加する
-            // つまり: Capture -> Invert -> Mass
-            if (isCapturing) activeEffects.push({ color: COLOR_ITEM_CAPTURE, glow: 10 });
-            if (isInverted) activeEffects.push({ color: COLOR_ITEM_INVERSION, glow: 10 });
-            if (isPowered) activeEffects.push({ color: this.color, glow: 15 });
-
-            const effectCount = activeEffects.length;
-
-            if (effectCount > 0) {
-                activeEffects.forEach((effect, index) => {
-                    let rBase = 1.5;
-                    let widthBase = 4.0;
-                    
-                    if (effectCount === 1) {
-                        rBase = 1.6;
-                        widthBase = 4.0;
-                    } else if (effectCount === 2) {
-                        rBase = 1.5 + (index * 0.5); // 1.5, 2.0
-                        widthBase = 3.0;
-                    } else if (effectCount === 3) {
-                        rBase = 1.4 + (index * 0.4); // 1.4, 1.8, 2.2
-                        widthBase = 2.5;
-                    }
-                    
-                    ctx.shadowBlur = effect.glow * blurFactor;
-                    ctx.shadowColor = effect.color;
-                    ctx.strokeStyle = effect.color;
-                    ctx.lineWidth = widthBase / scaleFactor;
-                    
-                    ctx.beginPath();
-                    // パルスは全リング同期させる
-                    ctx.arc(this.pos.x, this.pos.y, this.radius * (rBase + auraPulse * 0.2), 0, Math.PI * 2);
-                    ctx.stroke();
-                });
-            }
-
-            ctx.shadowBlur = (isPowered ? 40 : (this.isSatellite ? 15 : 30)) * blurFactor;
-            ctx.shadowColor = this.color; ctx.fillStyle = this.color;
-            ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, isPowered ? this.radius * 1.2 : this.radius, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0; ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, (isPowered ? this.radius * 1.2 : this.radius) * 0.4, 0, Math.PI * 2); ctx.fill();
-        }
-        
-        ctx.restore(); // 本体描画終了、不透明度設定リセット
-
-        // ラベル描画：透明度の影響を受けない（特にプレイヤー）
-        // 修正: 軌斥(repulsiveTrailTimer > 0)の場合も表示対象に追加
-        if (this.isPlayer || ((isPowered || isInverted || isCapturing || this.repulsiveTrailTimer > 0) && this.stealthOpacity > 0.5)) {
-            ctx.save();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            const fontSize = Math.round(LABEL_PHYSICAL_FONT_SIZE / scaleFactor);
-            ctx.font = `${fontSize * 0.9}px font-fugaz`; ctx.textAlign = 'center';
-            let label = this.isPlayer ? "YOU" : "ENEMY";
-            if (isPowered) label = "HEAVY";
-            if (isInverted) label = "REPULS";
-            if (this.repulsiveTrailTimer > 0) label = "TRAIL";
-            if (isCapturing) label = "CAPTURE";
-
-            let label_dist = 20;
-            if (isPowered) label_dist += 4;
-            if (isInverted) label_dist += 4;
-            if (this.repulsiveTrailTimer > 0) label_dist += 4;
-            if (isCapturing) label_dist += 4;
-            if (this.isStealthActive()) label_dist += 4;
-            
-            const labelY = this.pos.y - (label_dist / scaleFactor);
-            ctx.fillText(label, this.pos.x, labelY);
-
-            // インジケーターバー描画
-            const barWidth = 40 / scaleFactor;
-            const barHeight = 3 / scaleFactor;
-            const spacing = 2 / scaleFactor;
-            let currentBarY = labelY + (3 / scaleFactor); // ラベルの少し下
-
-            const effects = [];
-            if (this.powerupTimer > 0) effects.push({ ratio: this.powerupTimer / POWERUP_DURATION, color: COLOR_ITEM_MASS });
-            if (this.stealthTimer > 0) effects.push({ ratio: this.stealthTimer / STEALTH_TOTAL_DURATION, color: COLOR_ITEM_STEALTH });
-            if (this.inversionTimer > 0) effects.push({ ratio: this.inversionTimer / INVERSION_DURATION, color: COLOR_ITEM_INVERSION });
-            if (this.repulsiveTrailTimer > 0) effects.push({ ratio: this.repulsiveTrailTimer / REPULSIVE_TRAIL_DURATION, color: COLOR_ITEM_REPULSIVE });
-            if (this.captureTimer > 0) effects.push({ ratio: this.captureTimer / CAPTURE_DURATION, color: COLOR_ITEM_CAPTURE });
-
-            for (const effect of effects) {
-                // 背景
-                ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
-                ctx.fillRect(this.pos.x - barWidth / 2, currentBarY, barWidth, barHeight);
-                // バー
-                ctx.fillStyle = effect.color;
-                ctx.fillRect(this.pos.x - barWidth / 2, currentBarY, barWidth * effect.ratio, barHeight);
-                
-                currentBarY += barHeight + spacing;
-            }
-
-            ctx.restore();
-        }
-    }
+interface SpawnWarning {
+    x: number;
+    y: number;
+    timer: number;
+    isPlayer?: boolean;
 }
 
 // ゲームエンジンクラス：ゲーム全体の進行管理
@@ -1499,7 +910,8 @@ export class GameEngine {
             else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3])/sum_ratio) type = ItemType.GRAVITY_WAVE;
             else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3]+item_ratio[4])/sum_ratio) type = ItemType.INVERSION;
             else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3]+item_ratio[4]+item_ratio[5])/sum_ratio) type = ItemType.REPULSIVE_TRAIL;
-            else type = ItemType.CAPTURE;
+            else if (r < (item_ratio[0]+item_ratio[1]+item_ratio[2]+item_ratio[3]+item_ratio[4]+item_ratio[5]+item_ratio[6])/sum_ratio) type = ItemType.CAPTURE;
+            else type = ItemType.RAMJET;
 
             this.items.push(new Item(x, y, type));
             this.itemSpawnTimer = ITEM_SPAWN_INTERVAL_MIN + Math.random() * (ITEM_SPAWN_INTERVAL_MAX - ITEM_SPAWN_INTERVAL_MIN);
@@ -1527,6 +939,8 @@ export class GameEngine {
                         entity.trail = []; // Reset trail immediately to remove previous trail visuals
                     } else if (item.type === ItemType.CAPTURE) {
                         entity.captureTimer = CAPTURE_DURATION;
+                    } else if (item.type === ItemType.RAMJET) {
+                        entity.ramjetTimer = RAMJET_DURATION;
                     }
 
                     this.flashOpacity = entity.isPlayer ? 0.4 : 0.2;
@@ -1537,6 +951,7 @@ export class GameEngine {
                     else if (item.type === ItemType.INVERSION) fColor = COLOR_ITEM_INVERSION;
                     else if (item.type === ItemType.REPULSIVE_TRAIL) fColor = COLOR_ITEM_REPULSIVE;
                     else if (item.type === ItemType.CAPTURE) fColor = COLOR_ITEM_CAPTURE;
+                    else if (item.type === ItemType.RAMJET) fColor = COLOR_ITEM_RAMJET_FRONT;
                     
                     this.flashColor = fColor; itemConsumed = true;
                     for (let p = 0; p < 30; p++) {
@@ -1577,6 +992,7 @@ export class GameEngine {
                     if (victim.inversionTimer > 0) stealableItems.push({ type: 'INVERSION', time: CAPTURE_TIME_INVERSION, color: COLOR_ITEM_INVERSION });
                     if (victim.repulsiveTrailTimer > 0) stealableItems.push({ type: 'TRAIL', time: CAPTURE_TIME_TRAIL, color: COLOR_ITEM_REPULSIVE });
                     if (victim.waveChargeCount > 0) stealableItems.push({ type: 'WAVE', time: CAPTURE_TIME_WAVE, color: COLOR_ITEM_WAVE });
+                    if (victim.ramjetTimer > 0) stealableItems.push({ type: 'RAMJET', time: CAPTURE_TIME_RAMJET, color: COLOR_ITEM_RAMJET_FRONT });
 
                     if (stealableItems.length > 0) {
                         // 必要な時間が短い順にソート（奪いやすい順）
@@ -1589,7 +1005,7 @@ export class GameEngine {
 
                         // Particle Effect (Suction)
                         // 量を増やす: 1フレームに2個生成して密度を上げる
-                        for (let i = 0; i < 2; i++) {
+                        for (let i = 0; i < 5; i++) {
                              // ランダムに選ばれた色のパーティクルを出す（視覚的には全て吸っているように）
                              const targetItem = stealableItems[Math.floor(Math.random() * stealableItems.length)];
                              this.spawnCaptureStreamParticle(victim, capturer, targetItem.color);
@@ -1653,6 +1069,15 @@ export class GameEngine {
                                         victim.waveChargeCount = 0;
                                         this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
                                         this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_WAVE));
+                                        stoleSomething = true;
+                                    }
+                                    break;
+                                case 'RAMJET':
+                                    if (victim.ramjetTimer > 0) {
+                                        capturer.ramjetTimer = Math.max(capturer.ramjetTimer, victim.ramjetTimer);
+                                        victim.ramjetTimer = 0;
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_RAMJET_FRONT);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_RAMJET_FRONT));
                                         stoleSomething = true;
                                     }
                                     break;
@@ -1833,6 +1258,23 @@ export class GameEngine {
                     }
                     if (A.isStealthActive()) fOnA = fOnA.scale(GRAVITY_REDUCTION);
                     if (B.isStealthActive()) fOnB = fOnB.scale(GRAVITY_REDUCTION);
+                    
+                    // ラムジェットの倍率適用
+                    if (B.isRamjetActive()) {
+                        const V_B = B.vel.normalize();
+                        const D_A = A.pos.subtract(B.pos).normalize();
+                        const dot_B = V_B.dot(D_A);
+                        const gain_B = dot_B > 0 ? RAMJET_FRONT_GAIN : RAMJET_REAR_GAIN;
+                        fOnA = fOnA.scale(gain_B);
+                    }
+                    if (A.isRamjetActive()) {
+                        const V_A = A.vel.normalize();
+                        const D_B = B.pos.subtract(A.pos).normalize();
+                        const dot_A = V_A.dot(D_B);
+                        const gain_A = dot_A > 0 ? RAMJET_FRONT_GAIN : RAMJET_REAR_GAIN;
+                        fOnB = fOnB.scale(gain_A);
+                    }
+
                     A.applyForce(fOnA); B.applyForce(fOnB);
                     if (A.isPlayer || B.isPlayer) { 
                         playerTotalGravityForce += A.isPlayer ? fOnA.length() : fOnB.length();

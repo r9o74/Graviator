@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Item, ItemType } from '../game/Engine';
+import { Item } from '../game/entities/Item';
+import { ItemType } from '../types';
 
 interface ItemInfo {
     type: ItemType;
@@ -17,6 +18,7 @@ const ITEM_INFOS: ItemInfo[] = [
     { type: ItemType.INVERSION, name: "反転", englishName: "REPULSE", desc: "引力を斥力に反転させ、近づく敵を押し返す。" },
     { type: ItemType.REPULSIVE_TRAIL, name: "軌斥", englishName: "REFLECTRAIL", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
     { type: ItemType.CAPTURE, name: "強奪", englishName: "CAPTURE", desc: "接近した敵からアイテム効果を奪い取る。" },
+    { type: ItemType.RAMJET, name: "ラムジェット", englishName: "RAMJET", desc: "進路上の敵を吸い込み、後方に吹き飛ばす。" },
 ];
 
 // アイテムのアイコンの描画コンポーネント（Engineの描画ロジックを流用）

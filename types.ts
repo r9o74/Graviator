@@ -57,6 +57,18 @@ export interface GameStats {
     highlightItem?: boolean;     // アイテムをハイライトするか（今回は使わないかもしれないが念のため）
 }
 
+// アイテムの種類定義
+export enum ItemType {
+    MASS_BOOST,      // 質量増加
+    SATELLITE,       // 衛星
+    INVISIBILITY,    // 透明化
+    GRAVITY_WAVE,    // 重力波
+    INVERSION,       // 引力反転
+    REPULSIVE_TRAIL, // 斥力トレイル
+    CAPTURE,         // 能力強奪
+    RAMJET           // ラムジェット
+}
+
 // DBに保存するスコアレコード
 export interface ScoreRecord {
     id: string;
