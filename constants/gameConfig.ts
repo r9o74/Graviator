@@ -53,7 +53,7 @@ export const ITEM_SPAWN_INTERVAL_MAX = 4.0;
 
 // アイテム出現比率
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪：ラムジェット
-export const item_ratio = [10, 10, 8, 10, 10, 8, 5, 30]; 
+export const item_ratio = [10, 10, 10, 10, 10, 8, 5, 10]; 
 
 
 // --- アイテム効果パラメータ ---
@@ -79,6 +79,7 @@ export const WAVE_SPEED = 700.0;
 export const WAVE_FORCE = 45000.0;
 export const WAVE_DURATION = 0.15;
 export const WAVE_INTERVAL = 1.0;
+export const WAVE_WAITING = 0.5;
 export const WAVE_MAX_RADIUS = 600.0;
 
 // 反転
@@ -106,7 +107,7 @@ export const CAPTURE_TIME_RAMJET = 0.3;
 // ラムジェット
 export const RAMJET_DURATION = 8.0;
 export const RAMJET_FRONT_GAIN = 2.5;
-export const RAMJET_REAR_GAIN = -6.0;
+export const RAMJET_REAR_GAIN = -5.0;
 
 
 

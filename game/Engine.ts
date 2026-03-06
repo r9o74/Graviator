@@ -14,7 +14,7 @@ import {
     POWERUP_DURATION, MASS_BOOST_MULTIPLIER,
     SATELLITE_MASS, SATELLITE_RADIUS, SATELLITE_THRUST, SATELLITE_NUM, SATELLITE_TRAIL_LENGTH,
     STEALTH_FADE_DURATION, STEALTH_INVIS_DURATION, STEALTH_TOTAL_DURATION, GRAVITY_REDUCTION,
-    WAVE_SPEED, WAVE_FORCE, WAVE_DURATION, WAVE_INTERVAL, WAVE_MAX_RADIUS,
+    WAVE_SPEED, WAVE_FORCE, WAVE_DURATION, WAVE_INTERVAL, WAVE_WAITING, WAVE_MAX_RADIUS,
     INVERSION_DURATION, INVERSION_MULTIPLE_1, INVERSION_MULTIPLE_2,
     REPULSIVE_TRAIL_DURATION, REPULSIVE_TRAIL_RESTITUTION, REPULSIVE_TRAIL_RESTITUTION_TAN, TRAIL_LENGTH_EXTENDED,
     CAPTURE_DURATION, CAPTURE_RADIUS, CAPTURE_TIME_MASS, CAPTURE_TIME_STEALTH, CAPTURE_TIME_INVERSION,
@@ -932,7 +932,7 @@ export class GameEngine {
                             this.entities.push(sat);
                         }
                     } else if (item.type === ItemType.INVISIBILITY) { entity.stealthTimer = STEALTH_TOTAL_DURATION; }
-                    else if (item.type === ItemType.GRAVITY_WAVE) { entity.waveChargeCount = 2; entity.waveChargeTimer = 0.01; }
+                    else if (item.type === ItemType.GRAVITY_WAVE) { entity.waveChargeCount = 2; entity.waveChargeTimer = WAVE_WAITING; }
                     else if (item.type === ItemType.INVERSION) { entity.inversionTimer = INVERSION_DURATION; }
                     else if (item.type === ItemType.REPULSIVE_TRAIL) { 
                         entity.repulsiveTrailTimer = REPULSIVE_TRAIL_DURATION; 
@@ -1065,7 +1065,7 @@ export class GameEngine {
                                 case 'WAVE':
                                     if (victim.waveChargeCount > 0) {
                                         capturer.waveChargeCount += victim.waveChargeCount;
-                                        capturer.waveChargeTimer = 0.01; 
+                                        capturer.waveChargeTimer = WAVE_WAITING; 
                                         victim.waveChargeCount = 0;
                                         this.spawnTransferParticles(victim, capturer, COLOR_ITEM_WAVE);
                                         this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_WAVE));

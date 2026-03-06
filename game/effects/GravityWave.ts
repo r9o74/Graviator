@@ -37,7 +37,12 @@ export class GravityWave {
                 
                 // 距離減衰とライフ減衰を考慮した力
                 // 遠くてもある程度効くように調整
-                const forceMagnitude = WAVE_FORCE * decay; 
+                let forceMagnitude = WAVE_FORCE * decay; 
+
+                // 反転アイテム効果中の場合は重力波の力を反転（引き寄せる）
+                if (entity.isInversionActive()) {
+                    forceMagnitude *= -1;
+                }
 
                 // 重力波を受けたエンティティに力を設定（Entity側で処理）
                 entity.waveForce = new Vector2(dir.x * forceMagnitude, dir.y * forceMagnitude);

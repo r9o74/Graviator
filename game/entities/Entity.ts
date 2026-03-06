@@ -2,11 +2,13 @@ import { Vector2 } from '../Vector2';
 import {
     COLOR_PLAYER, COLOR_ENEMY, COLOR_ITEM_MASS, COLOR_ITEM_STEALTH, COLOR_ITEM_INVERSION,
     COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE, COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR,
+    COLOR_ITEM_WAVE,
     PLAYER_RADIUS, ENTITY_MASS, SATELLITE_RADIUS, SATELLITE_MASS, SATELLITE_TRAIL_LENGTH,
     TRAIL_LENGTH, TRAIL_LENGTH_EXTENDED, TRAIL_WIDTH,
     POWERUP_DURATION, STEALTH_TOTAL_DURATION, STEALTH_FADE_DURATION,
     INVERSION_DURATION, REPULSIVE_TRAIL_DURATION, CAPTURE_DURATION, CAPTURE_RADIUS,
-    FRICTION, FRICTION_VEL_EXP, LABEL_PHYSICAL_FONT_SIZE, RAMJET_DURATION
+    FRICTION, FRICTION_VEL_EXP, LABEL_PHYSICAL_FONT_SIZE, RAMJET_DURATION,
+    WAVE_WAITING, WAVE_INTERVAL
 } from '../../constants/gameConfig';
 
 // 軌跡の座標点
@@ -304,7 +306,7 @@ export class Entity {
             ctx.restore();
         }
         
-        // Ramjet Effect
+        // Ramjet Effect (常に表示)
         if (this.isRamjetActive()) {
             ctx.save();
             ctx.globalAlpha = 1.0;
@@ -313,6 +315,73 @@ export class Entity {
             
             const radius = 100;
             ctx.drawImage(getRamjetCanvas(), -radius, -radius);
+            
+            ctx.restore();
+        }
+
+        // Gravity Wave Charge Effect (常に表示)
+        if (this.waveChargeCount > 0 && this.waveChargeTimer > 0) {
+            ctx.save();
+            const timeRemaining = this.waveChargeTimer;
+            // Shrink from radius + 100 down to radius
+            const chargeRadius = this.radius + timeRemaining * 100;
+            
+            ctx.strokeStyle = COLOR_ITEM_WAVE;
+            ctx.lineWidth = 4 / scaleFactor;
+            // Fade in as it gets closer to 0
+            ctx.globalAlpha = Math.min(1.0, 1.0 - (timeRemaining / WAVE_INTERVAL));
+            
+            ctx.translate(this.pos.x, this.pos.y);
+            // Rotate the circle as it shrinks
+            ctx.rotate(timeRemaining * Math.PI * 2);
+            
+            ctx.beginPath();
+            
+            // ビリビリした演出（ジッターを加えた円）
+            const numPoints = 60;
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                // ランダムなブレ（時間経過で激しくなる）
+                const jitter = (Math.random() - 0.5) * 20 * (1.0 - timeRemaining / WAVE_INTERVAL);
+                const r = chargeRadius + jitter;
+                const x = Math.cos(angle) * r;
+                const y = Math.sin(angle) * r;
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Draw 4 converging lightning arrows
+            ctx.lineWidth = 2 / scaleFactor;
+            for (let i = 0; i < 7; i++) {
+                const angle = (i / 7) * Math.PI * 2;
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                
+                ctx.beginPath();
+                let startX = cosA * (chargeRadius + 5);
+                let startY = sinA * (chargeRadius + 5);
+                ctx.moveTo(startX, startY);
+                
+                // ギザギザの線を描画
+                const steps = 4;
+                for (let j = 1; j <= steps; j++) {
+                    const progress = j / steps;
+                    const targetX = cosA * (chargeRadius + 5 * (1 - progress));
+                    const targetY = sinA * (chargeRadius + 5 * (1 - progress));
+                    
+                    // 横方向のブレ
+                    const perpX = -sinA;
+                    const perpY = cosA;
+                    const jitter = (Math.random() - 0.5) * 20;
+                    
+                    ctx.lineTo(targetX + perpX * jitter, targetY + perpY * jitter);
+                }
+                ctx.stroke();
+            }
             
             ctx.restore();
         }
