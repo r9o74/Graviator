@@ -196,7 +196,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                 <h1 className={`text-4xl landscape:text-5xl md:text-6xl font-black tracking-tight ${colorClass} font-orbitron transition-colors duration-1000`}>{title}</h1>
                                 {gameStats && !isMenu && (
                                     <div className="mt-1">
-                                        <span className="inline-block py-0.5 px-3 rounded-full text-[10px] md:text-[12px] font-orbitron font-bold tracking-[0.2em] bg-white/5 text-white/40">
+                                        <span className="inline-block py-0.5 px-3 rounded-full text-[10px] md:text-[12px] font-orbitron font-bold tracking-[0.2em] bg-white/5 text-white/70">
                                             {gameStats.difficulty} MODE
                                         </span>
                                     </div>
@@ -303,7 +303,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                     </div>
                                 )}
 
-                                <div className="flex gap-2 mt-2 mx-auto text-center text-white/80 hover:text-white font-orbitron font-light text-[8px] md:text-[8px]">
+                                <div className="flex gap-2 mt-2 mx-auto text-center text-white/80 hover:text-white font-orbitron font-light text-[9px] md:text-[9px]">
                                     ヒント： {tips_sentence}
                                 </div>
                             </div>
