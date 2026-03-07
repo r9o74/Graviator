@@ -1266,6 +1266,11 @@ export class GameEngine {
                         const dot_B = V_B.dot(D_A);
                         const gain_B = dot_B > 0 ? RAMJET_FRONT_GAIN : RAMJET_REAR_GAIN;
                         fOnA = fOnA.scale(gain_B);
+                        
+                        // 敵を吸い込んでいる（後ろに引っ張っている）時のみフラッシュ
+                        if (gain_B < 0 && dist < 30) {
+                            B.ramjetFlash = 1.0;
+                        }
                     }
                     if (A.isRamjetActive()) {
                         const V_A = A.vel.normalize();
@@ -1273,6 +1278,11 @@ export class GameEngine {
                         const dot_A = V_A.dot(D_B);
                         const gain_A = dot_A > 0 ? RAMJET_FRONT_GAIN : RAMJET_REAR_GAIN;
                         fOnB = fOnB.scale(gain_A);
+                        
+                        // 敵を吸い込んでいる（後ろに引っ張っている）時のみフラッシュ
+                        if (gain_A < 0 && dist < 30) {
+                            A.ramjetFlash = 1.0;
+                        }
                     }
 
                     A.applyForce(fOnA); B.applyForce(fOnB);
@@ -1284,6 +1294,7 @@ export class GameEngine {
             }
         }
         
+        // ラムジェットの爆発フラッシュ制御
         // エンティティの位置更新
         this.entities.forEach(e => e.update(dt));
         

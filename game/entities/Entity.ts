@@ -103,6 +103,7 @@ export class Entity {
     repulsiveTrailTimer: number = 0;
     captureTimer: number = 0;
     ramjetTimer: number = 0;
+    ramjetFlash: number = 0;
     
     // 強奪スキル用
     captureProgress: Map<Entity, number> = new Map();
@@ -156,6 +157,11 @@ export class Entity {
         if (this.inversionTimer > 0) this.inversionTimer -= dt;
         if (this.captureTimer > 0) this.captureTimer -= dt;
         if (this.ramjetTimer > 0) this.ramjetTimer -= dt;
+        
+        if (this.ramjetFlash > 0) {
+            this.ramjetFlash -= dt * 6; // 約0.16秒でフェードアウト
+            if (this.ramjetFlash < 0) this.ramjetFlash = 0;
+        }
         
         // 斥力トレイル処理
         if (this.repulsiveTrailTimer > 0) {
@@ -430,6 +436,19 @@ export class Entity {
             ctx.shadowBlur = (isPowered ? 40 : (this.isSatellite ? 15 : 30)) * blurFactor;
             ctx.shadowColor = this.color; ctx.fillStyle = this.color;
             ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, isPowered ? this.radius * 1.2 : this.radius, 0, Math.PI * 2); ctx.fill();
+
+            // ラムジェットの燃焼発光（赤みがかった白）
+            if (this.ramjetFlash > 0) {
+                const intensity = this.ramjetFlash;
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.fillStyle = `rgba(255, 180, 150, ${intensity})`;
+                ctx.shadowColor = `rgba(255, 180, 150, ${intensity})`;
+                ctx.shadowBlur = 30 * blurFactor;
+                ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, isPowered ? this.radius * 1.2 : this.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            }
+
             ctx.shadowBlur = 0; ctx.fillStyle = '#FFFFFF';
             ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, (isPowered ? this.radius * 1.2 : this.radius) * 0.4, 0, Math.PI * 2); ctx.fill();
         }
