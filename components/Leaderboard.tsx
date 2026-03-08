@@ -15,13 +15,36 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchScores = async () => {
             setLoading(true);
-            const data = await getLeaderboard(mode, difficulty);
-            setScores(data);
-            setLoading(false);
+            
+            // タイムアウト処理を追加（Supabaseの呼び出しがハングした場合の対策）
+            const timeoutPromise = new Promise<ScoreRecord[]>((resolve) => {
+                setTimeout(() => resolve([]), 5000); // 5秒でタイムアウト
+            });
+            
+            try {
+                const data = await Promise.race([
+                    getLeaderboard(mode, difficulty),
+                    timeoutPromise
+                ]);
+                if (isMounted) {
+                    setScores(data);
+                    setLoading(false);
+                }
+            } catch (e) {
+                if (isMounted) {
+                    setScores([]);
+                    setLoading(false);
+                }
+            }
         };
         fetchScores();
+        
+        return () => {
+            isMounted = false;
+        };
     }, [mode, difficulty]);
 
     // キーボードショートカット
@@ -38,6 +61,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                     break;
                 case '3':
                     setDifficulty(Difficulty.HARD);
+                    break;
+                case '4':
+                    setDifficulty(Difficulty.EXTREME);
                     break;
                 case 's':
                     setMode(GameMode.SURVIVAL);
@@ -102,6 +128,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                     if (diff === Difficulty.EASY) keyHint = '1';
                     if (diff === Difficulty.NORMAL) keyHint = '2';
                     if (diff === Difficulty.HARD) keyHint = '3';
+                    if (diff === Difficulty.EXTREME) keyHint = '4';
                     
                     return (
                         <button
@@ -109,7 +136,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                             onClick={() => setDifficulty(diff)}
                             className={`px-3 py-1 text-[10px] md:text-xs font-orbitron tracking-wider border rounded-full transition-all group relative overflow-hidden ${
                                 difficulty === diff 
-                                    ? (diff === Difficulty.HARD ? 'border-red-500 text-red-400 bg-red-500/10' : diff === Difficulty.EASY ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-cyan-500 text-cyan-400 bg-cyan-500/10')
+                                    ? (diff === Difficulty.EXTREME ? 'border-purple-500 text-purple-400 bg-purple-500/10' : diff === Difficulty.HARD ? 'border-red-500 text-red-400 bg-red-500/10' : diff === Difficulty.EASY ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-cyan-500 text-cyan-400 bg-cyan-500/10')
                                     : 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
                             }`}
                         >
@@ -156,7 +183,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                                         ) : (
                                             <>
                                                 <span className="font-mono text-white/30">User-</span>
-                                                {record.user_id.slice(0, 8)}...
+                                                {record.user_id ? record.user_id.slice(0, 8) : 'Unknown'}...
                                             </>
                                         )}
                                     </td>    

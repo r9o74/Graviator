@@ -1,14 +1,53 @@
 // デバイス検知（モバイルかどうかの判定）
 export const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+// --- 難易度設定 ---
+export const DIFFICULTY_CONFIG = {
+    EASY: {
+        gravityConstant: 35000.0,
+        cpuThrust: 1200.0,
+        initialEnemyCount: 5,
+        endlessInitialEnemyCount: 3,
+        speedLimit: 600.0,
+    },
+    NORMAL: {
+        gravityConstant: 40000.0,
+        cpuThrust: 1800.0,
+        initialEnemyCount: 10,
+        endlessInitialEnemyCount: 5,
+        speedLimit: Infinity,
+    },
+    HARD: {
+        gravityConstant: 60000.0,
+        cpuThrust: 2800.0,
+        initialEnemyCount: 15,
+        endlessInitialEnemyCount: 7,
+        speedLimit: Infinity,
+    },
+    EXTREME: {
+        gravityConstant: 80000.0,
+        cpuThrust: 3800.0,
+        initialEnemyCount: 20,
+        endlessInitialEnemyCount: 10,
+        speedLimit: Infinity,
+    },
+    TUTORIAL: {
+        gravityConstant: 40000.0,
+        cpuThrust: 1000.0,
+        initialEnemyCount: 0, // チュートリアルは進行管理で制御
+        endlessInitialEnemyCount: 0,
+        speedLimit: 600.0,
+    }
+};
+
 // --- ゲーム定数定義 ---
 // 物理演算やゲームバランスに関わるパラメータ
 export const PLAYER_RADIUS = 12.0;           // プレイヤーの半径
 export const ENTITY_MASS = 10.0;             // 基本質量
 // 以下の値はデフォルト値として保持し、難易度によってクラス内でオーバーライドされる
-export const DEFAULT_GRAVITY_CONSTANT = 40000.0;     
-export const DEFAULT_CPU_THRUST_FORCE = 1800.0;      
-export const DEFAULT_ENEMY_NUMBER_SURVIVAL = 10;     
+export const DEFAULT_GRAVITY_CONSTANT = DIFFICULTY_CONFIG.NORMAL.gravityConstant;     
+export const DEFAULT_CPU_THRUST_FORCE = DIFFICULTY_CONFIG.NORMAL.cpuThrust;      
+export const DEFAULT_ENEMY_NUMBER_SURVIVAL = DIFFICULTY_CONFIG.NORMAL.initialEnemyCount;     
 
 export const GRAVITY_MAX = 250000.0;         // 重力の最大値制限（特異点回避）
 export const THRUST_FORCE = 1800.0;          // プレイヤーの推進力
@@ -53,7 +92,7 @@ export const ITEM_SPAWN_INTERVAL_MAX = 4.0;
 
 // アイテム出現比率
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪：ラムジェット
-export const item_ratio = [10, 10, 10, 10, 10, 8, 5, 30]; 
+export const item_ratio = [10, 10, 10, 10, 10, 8, 5, 8]; 
 
 
 // --- アイテム効果パラメータ ---

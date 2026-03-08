@@ -18,7 +18,8 @@ export enum GameMode {
 export enum Difficulty {
     EASY = 'EASY',
     NORMAL = 'NORMAL',
-    HARD = 'HARD'
+    HARD = 'HARD',
+    EXTREME = 'EXTREME'
 }
 
 // 入力状態を管理するインターフェース

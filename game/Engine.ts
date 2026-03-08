@@ -3,6 +3,7 @@ import { InputState, GameState, GameStats, GameMode, Difficulty, ItemType } from
 
 import {
     IS_MOBILE,
+    DIFFICULTY_CONFIG,
     PLAYER_RADIUS, ENTITY_MASS, DEFAULT_GRAVITY_CONSTANT, DEFAULT_CPU_THRUST_FORCE, DEFAULT_ENEMY_NUMBER_SURVIVAL,
     GRAVITY_MAX, THRUST_FORCE, BREAKING_CONSTANT, WALL_MARGIN, BREAK_BOOST, SAFE_DISTANCE, DIST_EXP,
     G_LINE_WIDTH, TRAIL_WIDTH, FRICTION, FRICTION_VEL_EXP, BASE_LOGICAL_SIZE, TRAIL_LENGTH,
@@ -158,25 +159,30 @@ export class GameEngine {
         // 難易度設定の適用
         if (mode === GameMode.TUTORIAL) {
             this.currentDifficulty = Difficulty.EASY; // チュートリアルはEASY固定
-            this.currentGravityConstant = 35000.0;
-            this.currentCpuThrust = 1000.0;
+            this.currentGravityConstant = DIFFICULTY_CONFIG.TUTORIAL.gravityConstant;
+            this.currentCpuThrust = DIFFICULTY_CONFIG.TUTORIAL.cpuThrust;
             // 敵の数はチュートリアルの進行管理で制御されるためここでは設定しない
         } else {
             switch (difficulty) {
                 case Difficulty.EASY:
-                    this.currentGravityConstant = 35000.0;
-                    this.currentCpuThrust = 1200.0;
-                    this.initialEnemyCount = 5;
+                    this.currentGravityConstant = DIFFICULTY_CONFIG.EASY.gravityConstant;
+                    this.currentCpuThrust = DIFFICULTY_CONFIG.EASY.cpuThrust;
+                    this.initialEnemyCount = DIFFICULTY_CONFIG.EASY.initialEnemyCount;
                     break;
                 case Difficulty.NORMAL:
-                    this.currentGravityConstant = 40000.0;
-                    this.currentCpuThrust = 1800.0;
-                    this.initialEnemyCount = 10;
+                    this.currentGravityConstant = DIFFICULTY_CONFIG.NORMAL.gravityConstant;
+                    this.currentCpuThrust = DIFFICULTY_CONFIG.NORMAL.cpuThrust;
+                    this.initialEnemyCount = DIFFICULTY_CONFIG.NORMAL.initialEnemyCount;
                     break;
                 case Difficulty.HARD:
-                    this.currentGravityConstant = 60000.0;
-                    this.currentCpuThrust = 2800.0;
-                    this.initialEnemyCount = 15;
+                    this.currentGravityConstant = DIFFICULTY_CONFIG.HARD.gravityConstant;
+                    this.currentCpuThrust = DIFFICULTY_CONFIG.HARD.cpuThrust;
+                    this.initialEnemyCount = DIFFICULTY_CONFIG.HARD.initialEnemyCount;
+                    break;
+                case Difficulty.EXTREME:
+                    this.currentGravityConstant = DIFFICULTY_CONFIG.EXTREME.gravityConstant;
+                    this.currentCpuThrust = DIFFICULTY_CONFIG.EXTREME.cpuThrust;
+                    this.initialEnemyCount = DIFFICULTY_CONFIG.EXTREME.initialEnemyCount;
                     break;
             }
         }
@@ -211,8 +217,16 @@ export class GameEngine {
             this.tutorialDemoTimer = 0;
         } else {
             // 通常モードの敵配置（プレイヤーから一定距離離す）
-            // エンドレスモードでも難易度に基づいて初期敵数を調整（NORMAL以上は5で固定、EASYは少なめに）
-            const spawnCount = mode === GameMode.ENDLESS ? (difficulty === Difficulty.EASY ? 3 : difficulty === Difficulty.NORMAL ? 5 : 7) : this.initialEnemyCount;
+            // エンドレスモードでも難易度に基づいて初期敵数を調整
+            let spawnCount = this.initialEnemyCount;
+            if (mode === GameMode.ENDLESS) {
+                switch (difficulty) {
+                    case Difficulty.EASY: spawnCount = DIFFICULTY_CONFIG.EASY.endlessInitialEnemyCount; break;
+                    case Difficulty.NORMAL: spawnCount = DIFFICULTY_CONFIG.NORMAL.endlessInitialEnemyCount; break;
+                    case Difficulty.HARD: spawnCount = DIFFICULTY_CONFIG.HARD.endlessInitialEnemyCount; break;
+                    case Difficulty.EXTREME: spawnCount = DIFFICULTY_CONFIG.EXTREME.endlessInitialEnemyCount; break;
+                }
+            }
             this.initialEnemyCount = spawnCount; // 統計用に保存
 
             const SAFE_DISTANCE_SQ = SAFE_DISTANCE * SAFE_DISTANCE;
@@ -1296,7 +1310,29 @@ export class GameEngine {
         
         // ラムジェットの爆発フラッシュ制御
         // エンティティの位置更新
-        this.entities.forEach(e => e.update(dt));
+        this.entities.forEach(e => {
+            e.update(dt);
+            // プレイヤーの速度制限
+            if (e.isPlayer) {
+                let speedLimit = Infinity;
+                if (this.gameMode === GameMode.TUTORIAL) {
+                    speedLimit = DIFFICULTY_CONFIG.TUTORIAL.speedLimit;
+                } else {
+                    switch (this.currentDifficulty) {
+                        case Difficulty.EASY: speedLimit = DIFFICULTY_CONFIG.EASY.speedLimit; break;
+                        case Difficulty.NORMAL: speedLimit = DIFFICULTY_CONFIG.NORMAL.speedLimit; break;
+                        case Difficulty.HARD: speedLimit = DIFFICULTY_CONFIG.HARD.speedLimit; break;
+                        case Difficulty.EXTREME: speedLimit = DIFFICULTY_CONFIG.EXTREME.speedLimit; break;
+                    }
+                }
+                
+                const speed = e.vel.length();
+                if (speed > speedLimit) {
+                    e.vel.x = (e.vel.x / speed) * speedLimit;
+                    e.vel.y = (e.vel.y / speed) * speedLimit;
+                }
+            }
+        });
         
         // 画面外判定（脱落処理）
         for (let i = this.entities.length - 1; i >= 0; i--) {

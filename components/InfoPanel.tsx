@@ -24,7 +24,8 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ stats }) => {
 
     // 難易度ごとの色設定
     let diffColorClass = "text-cyan-500/60";
-    if (difficulty === Difficulty.HARD) diffColorClass = "text-red-500/60";
+    if (difficulty === Difficulty.EXTREME) diffColorClass = "text-purple-500/60";
+    else if (difficulty === Difficulty.HARD) diffColorClass = "text-red-500/60";
     else if (difficulty === Difficulty.EASY) diffColorClass = "text-emerald-500/60";
 
     return (

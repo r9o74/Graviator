@@ -111,17 +111,21 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
         let blobBgClass = "";
 
         if (diff === Difficulty.EASY) {
-            baseColorClass = isSelected ? "text-emerald-400 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "text-white/40 border-white/10 hover:text-emerald-400";
+            baseColorClass = isSelected ? "text-emerald-400 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "text-white/60 border-white/10 hover:text-emerald-400";
             activeBgClass = isSelected ? "bg-emerald-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-emerald-500";
         } else if (diff === Difficulty.NORMAL) {
-            baseColorClass = isSelected ? "text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "text-white/40 border-white/10 hover:text-cyan-400";
+            baseColorClass = isSelected ? "text-cyan-400 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]" : "text-white/60 border-white/10 hover:text-cyan-400";
             activeBgClass = isSelected ? "bg-cyan-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-cyan-500";
-        } else {
-            baseColorClass = isSelected ? "text-red-400 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "text-white/40 border-white/10 hover:text-red-400";
+        } else if (diff === Difficulty.HARD) {
+            baseColorClass = isSelected ? "text-red-400 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "text-white/60 border-white/10 hover:text-red-400";
             activeBgClass = isSelected ? "bg-red-500/20" : "bg-white/5 hover:bg-white/20";
             blobBgClass = "bg-red-600";
+        } else if (diff === Difficulty.EXTREME) {
+            baseColorClass = isSelected ? "text-purple-400 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]" : "text-white/60 border-white/10 hover:text-purple-400";
+            activeBgClass = isSelected ? "bg-purple-500/20" : "bg-white/5 hover:bg-white/20";
+            blobBgClass = "bg-purple-600";
         }
 
         return (
@@ -250,6 +254,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                         {renderDifficultyButton(Difficulty.EASY)}
                                         {renderDifficultyButton(Difficulty.NORMAL)}
                                         {renderDifficultyButton(Difficulty.HARD)}
+                                        {renderDifficultyButton(Difficulty.EXTREME)}
                                     </div>
                                 )}
 

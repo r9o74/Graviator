@@ -32,11 +32,14 @@ function App() {
     const [userName, setUserName] = useState<string>(localStorage.getItem('graviator_name') || '');
 
     useEffect(() => {
+        let isInitializing = false;
         const initAuth = async () => {
             if (!isSupabaseConfigured) {
                 setDbStatus('offline');
                 return;
             }
+            if (isInitializing) return;
+            isInitializing = true;
             try {
                 const auth = supabase.auth as any;
                 const { data: { session }, error: sessionError } = await auth.getSession();
@@ -46,19 +49,24 @@ function App() {
                     setUserId(session.user.id);
                     setDbStatus('connected');
                 } else if (auth.signInAnonymously) {
+                    // 匿名ログインを必ず行う
                     const { data, error: signInError } = await auth.signInAnonymously();
                     if (signInError) throw signInError;
                     if (data?.user) {
                         setUserId(data.user.id);
                         setDbStatus('connected');
                     }
+                } else {
+                    setUserId(null);
+                    setDbStatus('connected');
                 }
             } catch (error) {
                 console.error("Auth error:", error);
                 setDbStatus('error');
+            } finally {
+                isInitializing = false;
             }
         };
-        initAuth();
 
         // ★追加: 認証状態の変更（ログイン・ログアウト）をリアルタイムに監視する
         if (isSupabaseConfigured) {
@@ -83,6 +91,8 @@ function App() {
             return () => {
                 authListener.subscription.unsubscribe();
             };
+        } else {
+            setDbStatus('offline');
         }
     }, []);
 
@@ -242,6 +252,7 @@ function App() {
                 if (e.key === '1') { setSelectedDifficulty(Difficulty.EASY); return; }
                 if (e.key === '2') { setSelectedDifficulty(Difficulty.NORMAL); return; }
                 if (e.key === '3') { setSelectedDifficulty(Difficulty.HARD); return; }
+                if (e.key === '4') { setSelectedDifficulty(Difficulty.EXTREME); return; }
             }
 
             // 5. 各ゲーム状態ごとの処理
