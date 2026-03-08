@@ -22,6 +22,7 @@ function App() {
     
     const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error' | 'offline'>('checking');
     const [userId, setUserId] = useState<string | null>(null);
+    const [isAnonymous, setIsAnonymous] = useState<boolean>(true);
     
     const keyboardInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
     const joystickInputRef = useRef<InputState>({ up: false, down: false, left: false, right: false });
@@ -47,6 +48,9 @@ function App() {
                 
                 if (session) {
                     setUserId(session.user.id);
+                    const isAnon = session.user.is_anonymous === true || 
+                                   session.user.app_metadata?.provider === 'anonymous';
+                    setIsAnonymous(isAnon);
                     setDbStatus('connected');
                 } else if (auth.signInAnonymously) {
                     // 匿名ログインを必ず行う
@@ -54,10 +58,12 @@ function App() {
                     if (signInError) throw signInError;
                     if (data?.user) {
                         setUserId(data.user.id);
+                        setIsAnonymous(true);
                         setDbStatus('connected');
                     }
                 } else {
                     setUserId(null);
+                    setIsAnonymous(true);
                     setDbStatus('connected');
                 }
             } catch (error) {
@@ -71,9 +77,16 @@ function App() {
         // ★追加: 認証状態の変更（ログイン・ログアウト）をリアルタイムに監視する
         if (isSupabaseConfigured) {
             const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+                console.log("Auth state changed:", event, "Session:", session);
                 if (session) {
                     const uid = session.user.id;
                     setUserId(uid);
+                    // Supabaseのバージョンによっては is_anonymous が user オブジェクトの直下にあるか、
+                    // app_metadata の中にある場合があるため、両方チェックする
+                    const isAnon = session.user.is_anonymous === true || 
+                                   session.user.app_metadata?.provider === 'anonymous';
+                    console.log("Is anonymous?", isAnon);
+                    setIsAnonymous(isAnon);
                     setDbStatus('connected');
 
                     // ★追加：ログインしたユーザーの保存済み名前を取得する
@@ -83,7 +96,9 @@ function App() {
                         localStorage.setItem('graviator_name', savedName);
                     }
                 } else {
+                    console.log("No session, setting to anonymous");
                     setUserId(null);
+                    setIsAnonymous(true);
                     initAuth();
                 }
             });
@@ -402,6 +417,7 @@ function App() {
                 userName={userName}
                 setUserName={setUserName}
                 userId={userId}
+                isAnonymous={isAnonymous}
                 dbStatus={dbStatus}
             />
         </div>

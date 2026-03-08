@@ -4,31 +4,31 @@ export const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAge
 // --- 難易度設定 ---
 export const DIFFICULTY_CONFIG = {
     EASY: {
-        gravityConstant: 35000.0,
-        cpuThrust: 1200.0,
+        gravityConstant: 38000.0,
+        cpuThrust: 1000.0,
         initialEnemyCount: 5,
         endlessInitialEnemyCount: 3,
-        speedLimit: 600.0,
+        speedLimit: 400.0,
     },
     NORMAL: {
+        gravityConstant: 38000.0,
+        cpuThrust: 1400.0,
+        initialEnemyCount: 8,
+        endlessInitialEnemyCount: 4,
+        speedLimit: 600.0,
+    },
+    HARD: {
         gravityConstant: 40000.0,
         cpuThrust: 1800.0,
         initialEnemyCount: 10,
         endlessInitialEnemyCount: 5,
         speedLimit: Infinity,
     },
-    HARD: {
+    EXTREME: {
         gravityConstant: 60000.0,
         cpuThrust: 2800.0,
         initialEnemyCount: 15,
         endlessInitialEnemyCount: 7,
-        speedLimit: Infinity,
-    },
-    EXTREME: {
-        gravityConstant: 80000.0,
-        cpuThrust: 3800.0,
-        initialEnemyCount: 20,
-        endlessInitialEnemyCount: 10,
         speedLimit: Infinity,
     },
     TUTORIAL: {

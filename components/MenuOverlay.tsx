@@ -23,6 +23,7 @@ interface MenuOverlayProps {
     userName?: string;
     setUserName?: (name: string) => void;
     userId?: string | null;
+    isAnonymous?: boolean;
     dbStatus?: 'checking' | 'connected' | 'error' | 'offline';
 }
 
@@ -43,6 +44,7 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     userName = 'Player',
     setUserName,
     userId,
+    isAnonymous = true,
     dbStatus
 }) => {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
@@ -275,12 +277,21 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                             RANKING
                                         </button>
 
-                                        <button 
-                                            onClick={signInWithGoogle} 
-                                            className="flex-1 py-2 text-white/80 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-blue-600/30 rounded-xl md:rounded-2xl border border-blue-500/50 hover:bg-blue-600/50"
-                                        >
-                                            LOGIN
-                                        </button>
+                                        {!isAnonymous ? (
+                                            <button 
+                                                onClick={signOut} 
+                                                className="flex-1 py-2 text-white/80 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-red-600/30 rounded-xl md:rounded-2xl border border-red-500/50 hover:bg-red-600/50"
+                                            >
+                                                LOGOUT
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={signInWithGoogle} 
+                                                className="flex-1 py-2 text-white/80 hover:text-white font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-blue-600/30 rounded-xl md:rounded-2xl border border-blue-500/50 hover:bg-blue-600/50"
+                                            >
+                                                LOGIN
+                                            </button>
+                                        )}
 
                                         {/* 設定ボタン（歯車アイコン） */}
                                         <button 
