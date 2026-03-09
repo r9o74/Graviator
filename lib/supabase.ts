@@ -79,7 +79,7 @@ export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, lim
             console.error('Error fetching leaderboard:', error);
             return [];
         }
-        return data as ScoreRecord[];
+        return (data || []) as ScoreRecord[];
     } catch (e) {
         console.error('Exception fetching leaderboard:', e);
         return [];

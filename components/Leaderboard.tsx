@@ -83,15 +83,16 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
         return date.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
     };
 
-    const formatScore = (val: number) => {
+    const formatScore = (val: number | undefined | null) => {
+        if (val === undefined || val === null) return '0';
         if (mode === GameMode.SURVIVAL) {
-            return `${val.toFixed(2)}s`;
+            return `${Number(val).toFixed(2)}s`;
         }
-        return `${Math.floor(val)}`;
+        return `${Math.floor(Number(val))}`;
     };
 
     return (
-        <div className="w-full h-full flex flex-col relative z-20">
+        <div className="w-full h-full min-h-[50vh] flex flex-col relative z-20">
             <div className="flex items-center justify-between mb-4 shrink-0">
                 <div className="flex flex-col">
                     <h2 className="text-2xl md:text-3xl font-fugaz text-cyan-400 tracking-wider">RANKING</h2>
@@ -156,7 +157,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
                             <span className="text-xs text-cyan-500/50 font-mono animate-pulse">LOADING DATA...</span>
                         </div>
                     </div>
-                ) : scores.length === 0 ? (
+                ) : !scores || scores.length === 0 ? (
                     <div className="flex items-center justify-center h-40 text-white/20 font-rajdhani tracking-widest text-sm">
                         NO RECORDS FOUND
                     </div>
