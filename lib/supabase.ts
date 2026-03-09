@@ -39,7 +39,7 @@ export const supabase = isSupabaseConfigured
       } as any;
 
 // スコアを保存する
-export const saveScore = async (userId: string, mode: GameMode, difficulty: Difficulty, score: number, userName: string) => {
+export const saveScore = async (userId: string, mode: GameMode, difficulty: Difficulty, score: number, userName: string | null) => {
     if (!isSupabaseConfigured) return;
     
     // チュートリアルは保存しない

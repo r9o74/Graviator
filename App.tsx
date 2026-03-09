@@ -125,7 +125,7 @@ function App() {
         else if (userName === '') {
             localStorage.removeItem('graviator_name');
             // 過去の記録も名前なし（null）に更新してID表示に戻す
-            updateProfile(userId, null as any); 
+            updateProfile(userId, null); 
         }
     }, [userName, userId]);
 
@@ -153,14 +153,14 @@ function App() {
             
             // スコア: サバイバルは生存時間、エンドレスはキル数
             const score = gameStats.mode === GameMode.SURVIVAL ? gameStats.timeSurvived : gameStats.kills;
-            const currentName = userName.trim() !== '' ? userName : '';
+            const currentName = userName.trim() !== '' ? userName : null;
             
             saveScore(userId, gameStats.mode, gameStats.difficulty, score, currentName);
             
             // 保存記録更新
             lastSavedRef.current = { mode: gameStats.mode, difficulty: gameStats.difficulty, date: now };
         }
-    }, [gameState, gameStats, userId]);
+    }, [gameState, gameStats, userId, userName]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
