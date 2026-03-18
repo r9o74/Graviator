@@ -50,12 +50,15 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
     const finalScore = score;
 
     try {
+        // --- デバッグログを追加 ---
+        const scoreData = { user_id: userId, game_mode: mode, difficulty: difficulty, score: finalScore, user_name: userName};
+        console.log("DEBUG: Inserting score object:", scoreData);
+        // ------------------------
+
         // まず user_name を含めて保存を試みる
         const { error } = await supabase
             .from('scores')
-            .insert([
-                { user_id: userId, game_mode: mode, difficulty: difficulty, score: finalScore, user_name: userName}
-            ]);
+            .insert([scoreData]);
         
         if (error) {
             console.error('Error saving score with user_name:', error);
