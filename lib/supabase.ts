@@ -90,9 +90,10 @@ export const saveScore = async (userId: string | null, mode: GameMode, difficult
 
 // ランキングを取得する
 export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, limit = 20): Promise<ScoreRecord[]> => {
-    // --- デバッグログを追加 ---
+    // --- デバッグログを修正 ---
     console.log("DEBUG: isSupabaseConfigured =", isSupabaseConfigured);
-    console.log("DEBUG: supabase object =", supabase);
+    // supabaseオブジェクト全体ではなく、URLだけログに出力
+    console.log("DEBUG: supabase url =", supabase.supabaseUrl);
     // ------------------------
     if (!isSupabaseConfigured) return [];
 
