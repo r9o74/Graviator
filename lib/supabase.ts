@@ -48,11 +48,10 @@ export const saveScore = async (userId: string | null, mode: GameMode, difficult
 
     // スコアはそのまま保存する（サバイバルモードのタイムアタックのため）
     const finalScore = score;
-    const isAnonymous = !userId || userId === '';
     
+    // 匿名ユーザーであってもSupabaseが発行したuserIdを使用する
     const scoreData = { 
-        user_id: isAnonymous ? null : userId, 
-        guest_id: isAnonymous ? (userId || 'anonymous') : null, 
+        user_id: userId || 'anonymous', // userIdがない場合は'anonymous'とする
         game_mode: mode, 
         difficulty: difficulty, 
         score: finalScore, 
