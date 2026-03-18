@@ -81,6 +81,10 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
 
 // ランキングを取得する
 export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, limit = 20): Promise<ScoreRecord[]> => {
+    // --- デバッグログを追加 ---
+    console.log("DEBUG: isSupabaseConfigured =", isSupabaseConfigured);
+    console.log("DEBUG: supabase object =", supabase);
+    // ------------------------
     if (!isSupabaseConfigured) return [];
 
     // サバイバルモードはタイム（短い方が良い）なので昇順
