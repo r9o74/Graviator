@@ -3,12 +3,11 @@ import { GameMode, Difficulty, ScoreRecord } from '../types';
 
 // 環境変数からSupabaseの設定を読み込む
 // Vite環境なので import.meta.env を使用します。
-const env = (import.meta as any).env || {};
-
-// 環境変数が読み込まれていない場合、ハードコードされた値をフォールバックとして設定します
-// 注意: プロダクションビルドでは環境変数をビルド時に注入することを推奨します
-const SUPABASE_URL = env.VITE_SUPABASE_URL || 'https://mzzltgihinrzvnvllqqt.supabase.co';
-const SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_XLpGAe0B60lb6-CVgWGFuw_wCujD-Zz';
+// 注意: プロダクションビルドでは環境変数をビルド時に静的に置換するため、直接参照する必要があります
+// @ts-ignore
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mzzltgihinrzvnvllqqt.supabase.co';
+// @ts-ignore
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_XLpGAe0B60lb6-CVgWGFuw_wCujD-Zz';
 
 // URLが有効かどうかを簡易チェック
 const isValidUrl = (url: string) => {
@@ -45,14 +44,34 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
     // チュートリアルは保存しない
     if (mode === GameMode.TUTORIAL) return;
 
+    // スコアは整数に丸める（DBの型エラーを防ぐため）
+    const roundedScore = Math.round(score);
+
     try {
+        // まず user_name を含めて保存を試みる
         const { error } = await supabase
             .from('scores')
             .insert([
-                { user_id: userId, game_mode: mode, difficulty: difficulty, score: score, user_name: userName}
+                { user_id: userId, game_mode: mode, difficulty: difficulty, score: roundedScore, user_name: userName}
             ]);
         
-        if (error) console.error('Error saving score:', error);
+        if (error) {
+            console.error('Error saving score with user_name:', error);
+            // user_name カラムが存在しないエラーの可能性があるため、user_name を除外してリトライ
+            const { error: retryError } = await supabase
+                .from('scores')
+                .insert([
+                    { user_id: userId, game_mode: mode, difficulty: difficulty, score: roundedScore }
+                ]);
+            
+            if (retryError) {
+                console.error('Error saving score on retry:', retryError);
+            } else {
+                console.log('Score saved successfully on retry (without user_name)');
+            }
+        } else {
+            console.log('Score saved successfully');
+        }
     } catch (e) {
         console.error('Exception saving score:', e);
     }
@@ -67,6 +86,7 @@ export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, lim
     const ascending = mode === GameMode.SURVIVAL;
 
     try {
+        console.log(`Fetching leaderboard for mode: ${mode}, difficulty: ${difficulty}`);
         const { data, error } = await supabase
             .from('scores')
             .select('*')
@@ -74,6 +94,8 @@ export const getLeaderboard = async (mode: GameMode, difficulty: Difficulty, lim
             .eq('difficulty', difficulty)
             .order('score', { ascending })
             .limit(limit);
+
+        console.log('Leaderboard fetch result:', { data, error });
 
         if (error) {
             console.error('Error fetching leaderboard:', error);
