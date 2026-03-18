@@ -19,21 +19,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose, currentMode =
         const fetchScores = async () => {
             setLoading(true);
             
-            // タイムアウト処理を追加（Supabaseの呼び出しがハングした場合の対策）
-            const timeoutPromise = new Promise<ScoreRecord[]>((resolve) => {
-                setTimeout(() => resolve([]), 5000); // 5秒でタイムアウト
-            });
-            
             try {
-                const data = await Promise.race([
-                    getLeaderboard(mode, difficulty),
-                    timeoutPromise
-                ]);
+                const data = await getLeaderboard(mode, difficulty);
                 if (isMounted) {
                     setScores(data);
                     setLoading(false);
                 }
             } catch (e) {
+                console.error("Error fetching scores in component:", e);
                 if (isMounted) {
                     setScores([]);
                     setLoading(false);

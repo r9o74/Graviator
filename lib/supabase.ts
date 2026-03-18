@@ -44,15 +44,17 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
     // チュートリアルは保存しない
     if (mode === GameMode.TUTORIAL) return;
 
-    // スコアは整数に丸める（DBの型エラーを防ぐため）
-    const roundedScore = Math.round(score);
+    console.log("Attempting to save score with userId:", userId, "mode:", mode, "score:", score);
+
+    // スコアはそのまま保存する（サバイバルモードのタイムアタックのため）
+    const finalScore = score;
 
     try {
         // まず user_name を含めて保存を試みる
         const { error } = await supabase
             .from('scores')
             .insert([
-                { user_id: userId, game_mode: mode, difficulty: difficulty, score: roundedScore, user_name: userName}
+                { user_id: userId, game_mode: mode, difficulty: difficulty, score: finalScore, user_name: userName}
             ]);
         
         if (error) {
@@ -61,7 +63,7 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
             const { error: retryError } = await supabase
                 .from('scores')
                 .insert([
-                    { user_id: userId, game_mode: mode, difficulty: difficulty, score: roundedScore }
+                    { user_id: userId, game_mode: mode, difficulty: difficulty, score: finalScore }
                 ]);
             
             if (retryError) {
