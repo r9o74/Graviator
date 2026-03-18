@@ -38,7 +38,7 @@ export const supabase = isSupabaseConfigured
       } as any;
 
 // スコアを保存する
-export const saveScore = async (userId: string, mode: GameMode, difficulty: Difficulty, score: number, userName: string | null) => {
+export const saveScore = async (userId: string | null, mode: GameMode, difficulty: Difficulty, score: number, userName: string | null) => {
     if (!isSupabaseConfigured) return;
     
     // チュートリアルは保存しない
@@ -48,12 +48,19 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
 
     // スコアはそのまま保存する（サバイバルモードのタイムアタックのため）
     const finalScore = score;
+    const isAnonymous = !userId || userId === '';
+    
+    const scoreData = { 
+        user_id: isAnonymous ? null : userId, 
+        guest_id: isAnonymous ? (userId || 'anonymous') : null, 
+        game_mode: mode, 
+        difficulty: difficulty, 
+        score: finalScore, 
+        user_name: userName
+    };
 
     try {
-        // --- デバッグログを追加 ---
-        const scoreData = { user_id: userId, game_mode: mode, difficulty: difficulty, score: finalScore, user_name: userName};
         console.log("DEBUG: Inserting score object:", scoreData);
-        // ------------------------
 
         // まず user_name を含めて保存を試みる
         const { error } = await supabase
@@ -66,7 +73,7 @@ export const saveScore = async (userId: string, mode: GameMode, difficulty: Diff
             const { error: retryError } = await supabase
                 .from('scores')
                 .insert([
-                    { user_id: userId, game_mode: mode, difficulty: difficulty, score: finalScore }
+                    { ...scoreData, user_name: undefined }
                 ]);
             
             if (retryError) {
