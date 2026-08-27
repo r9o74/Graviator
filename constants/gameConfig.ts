@@ -105,7 +105,7 @@ export const MASS_BOOST_COOLING_TIME = 2.0; // 効果終了後、他者との重
 export const SATELLITE_MASS = 12.0;
 export const SATELLITE_RADIUS = 6.0;
 export const SATELLITE_THRUST = 3000.0;
-export const SATELLITE_NUM = 8;
+export const SATELLITE_NUM = 6;
 export const SATELLITE_TRAIL_LENGTH = 50;
 
 // 透明化
@@ -116,7 +116,7 @@ export const GRAVITY_REDUCTION = 0.30; // 重力影響の軽減率
 
 // 重力波
 export const WAVE_SPEED = 700.0;
-export const WAVE_FORCE_GRAVITY_MULTIPLIER = 1.1; // 現在の難易度のgravityConstantに対する倍率
+export const WAVE_FORCE_GRAVITY_MULTIPLIER = 2.0; // 現在の難易度のgravityConstantに対する倍率
 export const WAVE_DURATION = 0.15;
 export const WAVE_INTERVAL = 1.0;
 export const WAVE_WAITING = 0.5;
@@ -130,14 +130,14 @@ export const INVERSION_MULTIPLE_2 = 0.05; // 敵 -> 自分 への斥力倍率
 
 // 軌斥 (Repulsive Trail)
 export const REPULSIVE_TRAIL_DURATION = 7.0;
-export const REPULSIVE_TRAIL_RESTITUTION = 1.2; // 法線方向反発係数
-export const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.5; // 接線方向反発係数
+export const REPULSIVE_TRAIL_RESTITUTION = 1.5; // 法線方向反発係数
+export const REPULSIVE_TRAIL_RESTITUTION_TAN = 0.7; // 接線方向反発係数
 export const TRAIL_LENGTH_EXTENDED = 3000; // トレイル最大長さ（壁を作るため長くする）
 
 // 強奪 (Capture)
 export const CAPTURE_DURATION = 8.0;
 export const CAPTURE_RADIUS = 100.0;
-export const CAPTURE_EXTENTION_TIME = 2.0; // 強奪した効果の延長（アイテム効果時間の設定値を上回らない）
+export const CAPTURE_EXTENTION_TIME = 5.0; // 強奪した効果の延長（アイテム効果時間の設定値を上回らない）
 // 各効果ごとの強奪所要時間
 export const CAPTURE_TIME_MASS = 0.3;
 export const CAPTURE_TIME_STEALTH = 0.5;
