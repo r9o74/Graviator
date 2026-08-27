@@ -116,7 +116,7 @@ export const GRAVITY_REDUCTION = 0.30; // 重力影響の軽減率
 
 // 重力波
 export const WAVE_SPEED = 700.0;
-export const WAVE_FORCE_GRAVITY_MULTIPLIER = 2.0; // 現在の難易度のgravityConstantに対する倍率
+export const WAVE_FORCE_GRAVITY_MULTIPLIER = 1.75; // 現在の難易度のgravityConstantに対する倍率
 export const WAVE_DURATION = 0.15;
 export const WAVE_INTERVAL = 1.0;
 export const WAVE_WAITING = 0.5;
