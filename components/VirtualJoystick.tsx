@@ -6,11 +6,15 @@ import { InputState } from '../types';
 interface VirtualJoystickProps {
     onInput: (input: InputState) => void;
     highlight?: boolean;
+    // true: 画面全体（他のボタン等を除く）のタッチ開始を検知する。ガイド表示は既存エリアの形状のまま維持する
+    fullScreenCapture?: boolean;
+    // 全画面検知レイヤーの表示/非表示を切り替えるTailwindクラス（縦画面用・横画面用インスタンスの二重検知を防ぐ）
+    captureVisibilityClassName?: string;
 }
 
 // タッチ操作用のアナログスティックコンポーネント
 // 指定されたエリア内でのタッチ開始を検知し、ドラッグ操作は画面全体で追従する
-const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput, highlight = false }) => {
+const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput, highlight = false, fullScreenCapture = false, captureVisibilityClassName = '' }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [active, setActive] = useState(false);
     const [origin, setOrigin] = useState({ x: 0, y: 0 }); // タッチ開始位置
@@ -147,13 +151,14 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput, highlight = 
     };
 
     return (
-        <div 
-            ref={containerRef} 
+        <div
+            ref={containerRef}
             className="relative w-full h-full select-none touch-none"
-            onMouseDown={onMouseDown}
-            onTouchStart={onTouchStart}
+            // fullScreenCapture時はこのエリア専用のハンドラは不要（全画面レイヤーが検知する）
+            onMouseDown={fullScreenCapture ? undefined : onMouseDown}
+            onTouchStart={fullScreenCapture ? undefined : onTouchStart}
         >
-            {/* 待機中のガイド表示 */}
+            {/* 待機中のガイド表示（既存エリアの形状のまま） */}
             <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${active ? 'opacity-30' : 'opacity-100'}`}>
                  <div className="flex flex-col items-center">
                     {/* ガイド用の外枠 */}
@@ -168,16 +173,26 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onInput, highlight = 
                  </div>
             </div>
 
+            {/* 全画面タッチ検知レイヤー：ボタン等（より高いz-index）の下、ゲーム画面の上でbody直下に描画 */}
+            {fullScreenCapture && createPortal(
+                <div
+                    className={`fixed inset-0 z-30 touch-none select-none ${captureVisibilityClassName}`}
+                    onMouseDown={onMouseDown}
+                    onTouchStart={onTouchStart}
+                />,
+                document.body
+            )}
+
             {/* 操作中のスティック（フローティング表示） - Portalでbody直下に描画 */}
             {active && createPortal(
-                <div 
+                <div
                     className="fixed pointer-events-none z-[9999]"
                     style={{ left: origin.x, top: origin.y }}
                 >
                     {/* 外枠リング */}
                     <div className="absolute -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border-2 border-cyan-500/30 bg-cyan-500/10 backdrop-blur-xs shadow-[0_0_0px_rgba(6,182,212,0.2)]"></div>
                     {/* 動くスティック */}
-                    <div 
+                    <div
                         className="absolute -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-cyan-400/50 backdrop-blur-xs shadow-[0_0_0px_rgba(34,211,238,0.6)]"
                         style={getStickStyle()}
                     ></div>

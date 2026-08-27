@@ -354,7 +354,7 @@ function App() {
                     {/* 横画面用ジョイスティックエリア (プレイ中のみ、残りのスペースを使用) */}
                     {gameState === GameState.PLAYING && (
                         <div className="hidden landscape:flex flex-1 relative bg-[#050510] border-t border-white/10 w-full min-h-0">
-                            <VirtualJoystick onInput={handleJoystickInput} highlight={gameStats?.highlightJoystick} />
+                            <VirtualJoystick onInput={handleJoystickInput} highlight={gameStats?.highlightJoystick} fullScreenCapture captureVisibilityClassName="hidden landscape:block" />
                         </div>
                     )}
                 </div>
@@ -386,7 +386,7 @@ function App() {
             {/* DOMフロー内に配置され、親のflexコンテナにより上部エリアの高さを減らす */}
             {gameState === GameState.PLAYING && (
                 <div className="h-48 shrink-0 border-t border-white/10 bg-[#050510] relative z-30 landscape:hidden w-full">
-                    <VirtualJoystick onInput={handleJoystickInput} highlight={gameStats?.highlightJoystick} />
+                    <VirtualJoystick onInput={handleJoystickInput} highlight={gameStats?.highlightJoystick} fullScreenCapture captureVisibilityClassName="landscape:hidden" />
                 </div>
             )}
 
