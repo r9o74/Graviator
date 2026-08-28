@@ -15,7 +15,8 @@ import {
     POWERUP_DURATION,
     SATELLITE_MASS, SATELLITE_RADIUS, SATELLITE_THRUST, SATELLITE_NUM, SATELLITE_TRAIL_LENGTH,
     STEALTH_FADE_DURATION, STEALTH_INVIS_DURATION, STEALTH_TOTAL_DURATION, GRAVITY_REDUCTION,
-    WAVE_SPEED, WAVE_DURATION, WAVE_INTERVAL, WAVE_WAITING, WAVE_MAX_RADIUS, WAVE_MAX_CHARGE,
+    WAVE_SPEED, WAVE_FORCE_EASY, WAVE_FORCE_NORMAL, WAVE_FORCE_HARD, WAVE_FORCE_EXTREME,
+    WAVE_DURATION, WAVE_INTERVAL, WAVE_WAITING, WAVE_MAX_RADIUS, WAVE_MAX_CHARGE,
     INVERSION_DURATION, INVERSION_MULTIPLE_1, INVERSION_MULTIPLE_2,
     REPULSIVE_TRAIL_DURATION, REPULSIVE_TRAIL_RESTITUTION, REPULSIVE_TRAIL_RESTITUTION_TAN, TRAIL_LENGTH_EXTENDED,
     CAPTURE_DURATION, CAPTURE_RADIUS, CAPTURE_EXTENTION_TIME, CAPTURE_TIME_MASS, CAPTURE_TIME_STEALTH, CAPTURE_TIME_INVERSION,
@@ -67,9 +68,11 @@ export class GameEngine {
     // 統計・スコア
     initialEnemyCount: number = DEFAULT_ENEMY_NUMBER_SURVIVAL;
     maxSpeedRecorded: number = 0; maxGravityRecorded: number = 0; killCount: number = 0;
+    itemsUsedCount: number = 0; // プレイヤーが使用したアイテム数
 
     // 現在の難易度設定値
     currentGravityConstant: number = DEFAULT_GRAVITY_CONSTANT;
+    currentWaveForce: number = WAVE_FORCE_NORMAL;
     currentCpuThrust: number = DEFAULT_CPU_THRUST_FORCE;
 
     // コールバック
@@ -133,6 +136,7 @@ export class GameEngine {
             this.currentDifficulty = Difficulty.EASY; // チュートリアルはEASY固定
             this.currentGravityConstant = DIFFICULTY_CONFIG.TUTORIAL.gravityConstant;
             this.currentCpuThrust = DIFFICULTY_CONFIG.TUTORIAL.cpuThrust;
+            this.currentWaveForce = WAVE_FORCE_EASY;
             // 敵の数はチュートリアルの進行管理で制御されるためここでは設定しない
         } else {
             switch (difficulty) {
@@ -140,21 +144,25 @@ export class GameEngine {
                     this.currentGravityConstant = DIFFICULTY_CONFIG.EASY.gravityConstant;
                     this.currentCpuThrust = DIFFICULTY_CONFIG.EASY.cpuThrust;
                     this.initialEnemyCount = DIFFICULTY_CONFIG.EASY.initialEnemyCount;
+                    this.currentWaveForce = WAVE_FORCE_EASY;
                     break;
                 case Difficulty.NORMAL:
                     this.currentGravityConstant = DIFFICULTY_CONFIG.NORMAL.gravityConstant;
                     this.currentCpuThrust = DIFFICULTY_CONFIG.NORMAL.cpuThrust;
                     this.initialEnemyCount = DIFFICULTY_CONFIG.NORMAL.initialEnemyCount;
+                    this.currentWaveForce = WAVE_FORCE_NORMAL;
                     break;
                 case Difficulty.HARD:
                     this.currentGravityConstant = DIFFICULTY_CONFIG.HARD.gravityConstant;
                     this.currentCpuThrust = DIFFICULTY_CONFIG.HARD.cpuThrust;
                     this.initialEnemyCount = DIFFICULTY_CONFIG.HARD.initialEnemyCount;
+                    this.currentWaveForce = WAVE_FORCE_HARD;
                     break;
                 case Difficulty.EXTREME:
                     this.currentGravityConstant = DIFFICULTY_CONFIG.EXTREME.gravityConstant;
                     this.currentCpuThrust = DIFFICULTY_CONFIG.EXTREME.cpuThrust;
                     this.initialEnemyCount = DIFFICULTY_CONFIG.EXTREME.initialEnemyCount;
+                    this.currentWaveForce = WAVE_FORCE_EXTREME;
                     break;
             }
         }
@@ -166,7 +174,7 @@ export class GameEngine {
         // 1秒遅延して開始するための調整
         this.startTime = Date.now() + 1000; // 旧変数は念のため残すが、ロジックはsurvivalTimeを使用
         this.survivalTime = -1.0;
-        this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.frameCount = 0;
+        this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.itemsUsedCount = 0; this.frameCount = 0;
         this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
 
         // プレイヤーと敵のスポーン設定
@@ -823,6 +831,7 @@ export class GameEngine {
             timeSurvived: Math.max(0, this.survivalTime), // 累積時間を使用
             dangerLevel: 0,
             kills: this.killCount,
+            itemsUsed: this.itemsUsedCount,
             tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined,
             tutorial_step_show: this.gameMode === GameMode.TUTORIAL ? this.tutorial_step_show : undefined,
             highlightJoystick: highlightJoystick
@@ -940,6 +949,7 @@ export class GameEngine {
                     else if (item.type === ItemType.RAMJET) fColor = COLOR_ITEM_RAMJET_FRONT;
 
                     this.flashColor = fColor; itemConsumed = true;
+                    if (entity.isPlayer) this.itemsUsedCount++;
                     for (let p = 0; p < 30; p++) {
                         const angle = Math.random() * Math.PI * 2; const speed = 100 + Math.random() * 200;
                         const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
@@ -1118,7 +1128,7 @@ export class GameEngine {
             if (e.waveChargeCount > 0) {
                 e.waveChargeTimer -= dt;
                 if (e.waveChargeTimer <= 0) {
-                    this.gravityWaves.push(new GravityWave(e.pos.x, e.pos.y, e, this.currentGravityConstant));
+                    this.gravityWaves.push(new GravityWave(e.pos.x, e.pos.y, e, this.currentWaveForce));
                     e.waveChargeCount--; e.waveChargeTimer = WAVE_INTERVAL;
                 }
             }
@@ -1256,8 +1266,8 @@ export class GameEngine {
                         }
                     }
                     if (outActiveA) fOnB = fOnB.scale(outSignA * (1 + outMagSumA));
-                    // ラムジェットのcosによる積算（加算プールとは別枠。cos=0で与える力が0になる）
-                    if (A.isRamjetActive()) fOnB = fOnB.scale(cosA);
+                    // ラムジェットのcosによる積算（加算プールとは別枠。cos=0で与える力が1/2になる）
+                    if (A.isRamjetActive()) fOnB = fOnB.scale((1 + Math.abs(cosA)) / 2);
 
                     // --- Bが与える力（fOnAに適用） ---
                     let outSignB = 1; let outMagSumB = 0; let outActiveB = false;
@@ -1278,8 +1288,8 @@ export class GameEngine {
                         }
                     }
                     if (outActiveB) fOnA = fOnA.scale(outSignB * (1 + outMagSumB));
-                    // ラムジェットのcosによる積算（加算プールとは別枠。cos=0で与える力が0になる）
-                    if (B.isRamjetActive()) fOnA = fOnA.scale(cosB);
+                    // ラムジェットのcosによる積算（加算プールとは別枠。cos=0で与える力が1/2になる）
+                    if (B.isRamjetActive()) fOnA = fOnA.scale((1 + Math.abs(cosB)) / 2);
 
                     // 「自分が受ける力」の軽減（既存通り・個別に乗算。スコープ外）
                     if (aInv) fOnA = fOnA.scale(INVERSION_MULTIPLE_2);

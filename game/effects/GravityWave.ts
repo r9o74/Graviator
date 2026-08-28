@@ -1,6 +1,6 @@
 import { Vector2 } from '../Vector2';
 import { Entity } from '../entities/Entity';
-import { WAVE_SPEED, WAVE_MAX_RADIUS, WAVE_FORCE_GRAVITY_MULTIPLIER, WAVE_DURATION } from '../../constants/gameConfig';
+import { WAVE_SPEED, WAVE_MAX_RADIUS, WAVE_DURATION } from '../../constants/gameConfig';
 
 // 重力波クラス（物理影響あり）
 export class GravityWave {
@@ -11,11 +11,11 @@ export class GravityWave {
     life: number = 1.0;
     waveForceBase: number;
 
-    constructor(x: number, y: number, owner: Entity, gravityConstant: number) {
+    constructor(x: number, y: number, owner: Entity, waveForce: number) {
         this.origin = new Vector2(x, y);
         this.owner = owner;
-        // 現在の難易度のgravityConstantに連動した力の基準値
-        this.waveForceBase = gravityConstant * WAVE_FORCE_GRAVITY_MULTIPLIER;
+        // 難易度ごとに設定された力の基準値
+        this.waveForceBase = waveForce;
     }
 
     // 波の更新と衝突判定

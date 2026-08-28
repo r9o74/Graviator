@@ -232,6 +232,29 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                 </div>
                             )}
 
+                            {(isGameOver || isVictory) && gameStats && (
+                                <div className="mb-4 md:mb-6 grid grid-cols-3 gap-2 w-full max-w-sm mx-auto">
+                                    <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
+                                        <p className="text-white/40 font-orbitron text-[8px] md:text-[10px] tracking-[0.15em] uppercase">最高速度</p>
+                                        <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
+                                            {Math.round(gameStats.maxSpeed)}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
+                                        <p className="text-white/40 font-orbitron text-[8px] md:text-[10px] tracking-[0.15em] uppercase">最大引力</p>
+                                        <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
+                                            {Math.round(gameStats.maxGravity)}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
+                                        <p className="text-white/40 font-orbitron text-[8px] md:text-[10px] tracking-[0.15em] uppercase">使用アイテム数</p>
+                                        <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
+                                            {gameStats.itemsUsed}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex flex-col gap-2 w-full max-w-sm mx-auto">
                                 {isPaused ? (
                                     <button onClick={onResume} className="group relative py-2 md:py-3 px-8 md:px-10 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 text-white font-orbitron font-black text-lg md:text-xl tracking-[0.3em] transition-all duration-500 rounded-[20px] md:rounded-[24px] overflow-hidden shadow-lg">
