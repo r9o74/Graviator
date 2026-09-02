@@ -25,8 +25,8 @@ export class GravityWave {
         if (this.life <= 0) return;
 
         for (const entity of entities) {
-            // 自分や所有者は除外、既に当たったものも除外
-            if (entity === this.owner || entity.owner === this.owner || this.hitEntities.has(entity)) continue;
+            // 自分や所有者は除外、既に当たったものも除外、ブラックホールは一切の外力を受け付けない
+            if (entity === this.owner || entity.owner === this.owner || this.hitEntities.has(entity) || entity.isBlackHole) continue;
             
             const dx = entity.pos.x - this.origin.x;
             const dy = entity.pos.y - this.origin.y;

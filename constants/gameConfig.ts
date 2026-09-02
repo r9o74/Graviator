@@ -78,6 +78,8 @@ export const COLOR_ITEM_REPULSIVE = '#FF3300'; // 軌斥（赤）
 export const COLOR_ITEM_CAPTURE = '#FF8C00';   // 強奪（ダークオレンジ）
 export const COLOR_ITEM_RAMJET_FRONT = '#FF4500'; // ラムジェット前方（赤系）
 export const COLOR_ITEM_RAMJET_REAR = '#1E90FF';  // ラムジェット後方（青系）
+export const COLOR_ITEM_HOLE_CORE = '#0A0620';    // ブラックホール コア（暗部）
+export const COLOR_ITEM_HOLE_GLOW = '#5B2EFF';    // ブラックホール アクセント（発光）
 
 export const PARTICLE_PHYSICAL_RADIUS = 1.5; // スラスト粒子の大きさ（基準値）
 export const LABEL_PHYSICAL_FONT_SIZE = 14;  // ラベルフォントサイズ
@@ -91,8 +93,8 @@ export const ITEM_SPAWN_INTERVAL_MAX = 4.0;
 
 
 // アイテム出現比率
-// 質量増加：衛星：透明化：重力波：反転：軌斥：強奪：ラムジェット
-export const item_ratio = [10, 10, 10, 10, 10, 7, 5, 6];
+// 質量増加：衛星：透明化：重力波：反転：軌斥：強奪：ラムジェット：ブラックホール
+export const item_ratio = [10, 10, 10, 10, 10, 7, 6, 6, 600];
 
 
 // --- アイテム効果パラメータ ---
@@ -148,11 +150,20 @@ export const CAPTURE_TIME_INVERSION = 0.2;
 export const CAPTURE_TIME_TRAIL = 0.25;
 export const CAPTURE_TIME_WAVE = 0.05;
 export const CAPTURE_TIME_RAMJET = 0.10;
+export const CAPTURE_TIME_HOLE = 0.05;
 
 // ラムジェット
 export const RAMJET_DURATION = 6.0;
 export const RAMJET_FRONT_GAIN = 3.0;
 export const RAMJET_REAR_GAIN = -4.5;
+
+// ブラックホール
+export const HOLE_WAITING = 2.0;        // 取得〜射出までの待機秒数
+export const HOLE_VELOCITY = 120;       // 射出後の固定速度
+export const HOLE_MASS = 90;            // 重力計算に使う質量
+export const HOLE_EFFECT_RADIUS = 100;  // 速度増幅・軌斥破壊が及ぶ範囲
+export const HOLE_CENTER_GROWTH_RATE = 15.0; // 中心(dist=0)での角速度成長率(倍/秒)。外縁では1.0倍/秒(＝成長なし)
+export const HOLE_GRAVITY_DECAY_RATE = 0.60; // 効果範囲内に居続けた場合の重力減衰レート(1秒あたりの倍率)
 
 
 

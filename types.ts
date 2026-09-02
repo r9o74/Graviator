@@ -68,7 +68,8 @@ export enum ItemType {
     INVERSION,       // 引力反転
     REPULSIVE_TRAIL, // 斥力トレイル
     CAPTURE,         // 能力強奪
-    RAMJET           // ラムジェット
+    RAMJET,          // ラムジェット
+    HOLE             // ブラックホール
 }
 
 // DBに保存するスコアレコード

@@ -2,8 +2,8 @@ import { Vector2 } from '../Vector2';
 import { ItemType } from '../../types';
 import {
     COLOR_ITEM_MASS, COLOR_ITEM_SATELLITE, COLOR_ITEM_STEALTH, COLOR_ITEM_WAVE,
-    COLOR_ITEM_INVERSION, COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE, 
-    COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR, ITEM_RADIUS
+    COLOR_ITEM_INVERSION, COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE,
+    COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR, COLOR_ITEM_HOLE_CORE, COLOR_ITEM_HOLE_GLOW, ITEM_RADIUS
 } from '../../constants/gameConfig';
 
 export class Item {
@@ -30,7 +30,8 @@ export class Item {
         else if (this.type === ItemType.REPULSIVE_TRAIL) color = COLOR_ITEM_REPULSIVE;
         else if (this.type === ItemType.CAPTURE) color = COLOR_ITEM_CAPTURE;
         else if (this.type === ItemType.RAMJET) color = COLOR_ITEM_RAMJET_FRONT;
-        
+        else if (this.type === ItemType.HOLE) color = COLOR_ITEM_HOLE_GLOW;
+
         const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
         ctx.shadowBlur = 15 + pulse * 10;
         ctx.shadowColor = color;
@@ -115,9 +116,22 @@ export class Item {
             ctx.fill();
             // Restore color for stroke
             ctx.fillStyle = color;
+        } else if (this.type === ItemType.HOLE) {
+            // 降着円盤風：外側リング（発光）＋内側コア（暗黒）
+            ctx.fillStyle = COLOR_ITEM_HOLE_GLOW;
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = COLOR_ITEM_HOLE_CORE;
+            ctx.beginPath();
+            ctx.arc(0, 0, size * (0.55 + pulse * 0.15), 0, Math.PI * 2);
+            ctx.fill();
+            // Restore color for stroke
+            ctx.fillStyle = color;
         }
-        ctx.closePath(); 
-        if (this.type !== ItemType.CAPTURE && this.type !== ItemType.RAMJET) ctx.fill(); 
+        ctx.closePath();
+        if (this.type !== ItemType.CAPTURE && this.type !== ItemType.RAMJET && this.type !== ItemType.HOLE) ctx.fill();
         
         ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2 / scaleFactor; ctx.stroke();
         ctx.restore();

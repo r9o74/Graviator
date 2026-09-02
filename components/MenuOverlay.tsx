@@ -237,13 +237,13 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                     <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
                                         <p className="text-white/40 font-orbitron text-[8px] md:text-[10px] tracking-[0.15em] uppercase">最高速度</p>
                                         <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
-                                            {Math.round(gameStats.maxSpeed)}
+                                            {Math.round(gameStats.maxSpeed).toLocaleString()}
                                         </p>
                                     </div>
                                     <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
                                         <p className="text-white/40 font-orbitron text-[8px] md:text-[10px] tracking-[0.15em] uppercase">最大引力</p>
                                         <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
-                                            {Math.round(gameStats.maxGravity)}
+                                            {Math.round(gameStats.maxGravity).toLocaleString()}
                                         </p>
                                     </div>
                                     <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">

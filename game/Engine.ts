@@ -8,7 +8,7 @@ import {
     GRAVITY_MAX, THRUST_FORCE, BREAKING_CONSTANT, WALL_MARGIN, BREAK_BOOST, SAFE_DISTANCE, DIST_EXP,
     G_LINE_WIDTH, TRAIL_WIDTH, FRICTION, FRICTION_VEL_EXP, BASE_LOGICAL_SIZE, TRAIL_LENGTH,
     COLOR_PLAYER, COLOR_ENEMY, COLOR_PARTICLE, COLOR_ITEM_MASS, COLOR_ITEM_SATELLITE, COLOR_ITEM_STEALTH,
-    COLOR_ITEM_WAVE, COLOR_ITEM_INVERSION, COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE,
+    COLOR_ITEM_WAVE, COLOR_ITEM_INVERSION, COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE, COLOR_ITEM_HOLE_GLOW,
     PARTICLE_PHYSICAL_RADIUS, LABEL_PHYSICAL_FONT_SIZE,
     ITEM_RADIUS, ITEM_AREA_RADIUS, ITEM_SPAWN_START_DELAY, ITEM_SPAWN_INTERVAL_MIN, ITEM_SPAWN_INTERVAL_MAX,
     item_ratio,
@@ -20,8 +20,9 @@ import {
     INVERSION_DURATION, INVERSION_MULTIPLE_1, INVERSION_MULTIPLE_2,
     REPULSIVE_TRAIL_DURATION, REPULSIVE_TRAIL_RESTITUTION, REPULSIVE_TRAIL_RESTITUTION_TAN, TRAIL_LENGTH_EXTENDED,
     CAPTURE_DURATION, CAPTURE_RADIUS, CAPTURE_EXTENTION_TIME, CAPTURE_TIME_MASS, CAPTURE_TIME_STEALTH, CAPTURE_TIME_INVERSION,
-    CAPTURE_TIME_TRAIL, CAPTURE_TIME_WAVE, CAPTURE_TIME_RAMJET,
-    RAMJET_DURATION, RAMJET_FRONT_GAIN, RAMJET_REAR_GAIN, COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR
+    CAPTURE_TIME_TRAIL, CAPTURE_TIME_WAVE, CAPTURE_TIME_RAMJET, CAPTURE_TIME_HOLE,
+    RAMJET_DURATION, RAMJET_FRONT_GAIN, RAMJET_REAR_GAIN, COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR,
+    HOLE_WAITING, HOLE_VELOCITY, HOLE_EFFECT_RADIUS, HOLE_CENTER_GROWTH_RATE, HOLE_GRAVITY_DECAY_RATE
 } from '../constants/gameConfig.ts';
 
 import { GravityWave } from './effects/GravityWave.ts';
@@ -349,7 +350,7 @@ export class GameEngine {
         // 最も近いターゲットを探す
         let closestEntity = null, minDistanceSq = Infinity;
         for (const entity of this.entities) {
-            if (entity === cpu || entity.owner === cpu || !entity.isTargetable()) continue;
+            if (entity === cpu || entity.owner === cpu || entity.isBlackHole || !entity.isTargetable()) continue;
             const dx = cpu.pos.x - entity.pos.x; const dy = cpu.pos.y - entity.pos.y; const distSq = dx * dx + dy * dy;
             if (distSq < minDistanceSq) { minDistanceSq = distSq; closestEntity = entity; }
         }
@@ -384,6 +385,7 @@ export class GameEngine {
         }
 
         if (thrustDirection.length() > 0) {
+            cpu.lastThrustDir = new Vector2(thrustDirection.x, thrustDirection.y);
             // 難易度に基づいた推力を使用
             let fx = thrustDirection.x * this.currentCpuThrust * cpu.thrustMultiplier;
             let fy = thrustDirection.y * this.currentCpuThrust * cpu.thrustMultiplier;
@@ -399,7 +401,7 @@ export class GameEngine {
         if (!sat.isSatellite || !sat.owner) return;
         let closestEnemy = null, minDistanceSq = Infinity;
         for (const entity of this.entities) {
-            if (entity === sat.owner || entity.owner === sat.owner || entity.isSatellite || !entity.isTargetable()) continue;
+            if (entity === sat.owner || entity.owner === sat.owner || entity.isSatellite || entity.isBlackHole || !entity.isTargetable()) continue;
             const dx = sat.pos.x - entity.pos.x; const dy = sat.pos.y - entity.pos.y; const distSq = dx * dx + dy * dy;
             if (distSq < minDistanceSq) { minDistanceSq = distSq; closestEnemy = entity; }
         }
@@ -906,7 +908,8 @@ export class GameEngine {
             else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4]) / sum_ratio) type = ItemType.INVERSION;
             else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4] + item_ratio[5]) / sum_ratio) type = ItemType.REPULSIVE_TRAIL;
             else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4] + item_ratio[5] + item_ratio[6]) / sum_ratio) type = ItemType.CAPTURE;
-            else type = ItemType.RAMJET;
+            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4] + item_ratio[5] + item_ratio[6] + item_ratio[7]) / sum_ratio) type = ItemType.RAMJET;
+            else type = ItemType.HOLE;
 
             this.items.push(new Item(x, y, type));
             this.itemSpawnTimer = ITEM_SPAWN_INTERVAL_MIN + Math.random() * (ITEM_SPAWN_INTERVAL_MAX - ITEM_SPAWN_INTERVAL_MIN);
@@ -914,7 +917,7 @@ export class GameEngine {
         for (let i = this.items.length - 1; i >= 0; i--) {
             const item = this.items[i]; let itemConsumed = false;
             for (const entity of this.entities) {
-                if (entity.isSatellite) continue;
+                if (entity.isSatellite || entity.isBlackHole) continue;
                 const dx = entity.pos.x - item.pos.x; const dy = entity.pos.y - item.pos.y; const distSq = dx * dx + dy * dy;
                 if (distSq < Math.pow(entity.radius + ITEM_AREA_RADIUS, 2)) {
                     if (item.type === ItemType.MASS_BOOST) {
@@ -936,6 +939,8 @@ export class GameEngine {
                         entity.captureTimer = CAPTURE_DURATION;
                     } else if (item.type === ItemType.RAMJET) {
                         entity.ramjetTimer = RAMJET_DURATION;
+                    } else if (item.type === ItemType.HOLE) {
+                        entity.holeCharges.push(HOLE_WAITING);
                     }
 
                     this.flashOpacity = entity.isPlayer ? 0.4 : 0.2;
@@ -947,6 +952,7 @@ export class GameEngine {
                     else if (item.type === ItemType.REPULSIVE_TRAIL) fColor = COLOR_ITEM_REPULSIVE;
                     else if (item.type === ItemType.CAPTURE) fColor = COLOR_ITEM_CAPTURE;
                     else if (item.type === ItemType.RAMJET) fColor = COLOR_ITEM_RAMJET_FRONT;
+                    else if (item.type === ItemType.HOLE) fColor = COLOR_ITEM_HOLE_GLOW;
 
                     this.flashColor = fColor; itemConsumed = true;
                     if (entity.isPlayer) this.itemsUsedCount++;
@@ -971,7 +977,7 @@ export class GameEngine {
             const activeTargetsInFrame = new Set<Entity>();
 
             for (const victim of this.entities) {
-                if (capturer === victim || victim.isSatellite) continue;
+                if (capturer === victim || victim.isSatellite || victim.isBlackHole) continue;
                 if (victim.owner === capturer || capturer.owner === victim) continue;
 
                 // Check distance
@@ -989,6 +995,7 @@ export class GameEngine {
                     if (victim.repulsiveTrailTimer > 0) stealableItems.push({ type: 'TRAIL', time: CAPTURE_TIME_TRAIL, color: COLOR_ITEM_REPULSIVE });
                     if (victim.waveChargeCount > 0) stealableItems.push({ type: 'WAVE', time: CAPTURE_TIME_WAVE, color: COLOR_ITEM_WAVE });
                     if (victim.ramjetTimer > 0) stealableItems.push({ type: 'RAMJET', time: CAPTURE_TIME_RAMJET, color: COLOR_ITEM_RAMJET_FRONT });
+                    if (victim.holeCharges.length > 0) stealableItems.push({ type: 'HOLE', time: CAPTURE_TIME_HOLE, color: COLOR_ITEM_HOLE_GLOW });
 
                     if (stealableItems.length > 0) {
                         // 必要な時間が短い順にソート（奪いやすい順）
@@ -1074,6 +1081,16 @@ export class GameEngine {
                                         stoleSomething = true;
                                     }
                                     break;
+                                case 'HOLE':
+                                    if (victim.holeCharges.length > 0) {
+                                        // 1回の強奪成立につきチャージを1個だけ奪う（HOLE_WAITINGから再スタート）
+                                        victim.holeCharges.shift();
+                                        capturer.holeCharges.push(HOLE_WAITING);
+                                        this.spawnTransferParticles(victim, capturer, COLOR_ITEM_HOLE_GLOW);
+                                        this.visualWaves.push(new VisualWave(capturer.pos.x, capturer.pos.y, COLOR_ITEM_HOLE_GLOW));
+                                        stoleSomething = true;
+                                    }
+                                    break;
                             }
 
                             if (stoleSomething) {
@@ -1112,6 +1129,7 @@ export class GameEngine {
             } else { player.breakingValue = 0; minDangerDist = Math.min(player.pos.x, this.logicalWidth - player.pos.x, player.pos.y, this.logicalHeight - player.pos.y); }
             if (magnitude > 0) {
                 const len = Math.sqrt(tx * tx + ty * ty); const nx = tx / len; const ny = ty / len;
+                player.lastThrustDir = new Vector2(nx, ny);
                 let fx = nx * THRUST_FORCE * Math.min(magnitude, 1.0) * player.thrustMultiplier;
                 let fy = ny * THRUST_FORCE * Math.min(magnitude, 1.0) * player.thrustMultiplier;
                 if (player.vel.x * nx < 0) fx *= (BREAKING_CONSTANT + player.breakingValue);
@@ -1132,12 +1150,49 @@ export class GameEngine {
                     e.waveChargeCount--; e.waveChargeTimer = WAVE_INTERVAL;
                 }
             }
+            // ブラックホールチャージ処理（複数チャージが独立して同時進行）
+            if (e.holeCharges.length > 0) {
+                for (let c = e.holeCharges.length - 1; c >= 0; c--) {
+                    e.holeCharges[c] -= dt;
+                    if (e.holeCharges[c] <= 0) {
+                        const dir = e.lastThrustDir;
+                        const hole = new Entity(e.pos.x, e.pos.y, false, false, e, true);
+                        hole.vel = new Vector2(dir.x * HOLE_VELOCITY, dir.y * HOLE_VELOCITY);
+                        this.entities.push(hole);
+                        e.holeCharges.splice(c, 1);
+                    }
+                }
+            }
         });
+
+        // ブラックホール通過時の軌斥破壊（HOLE_EFFECT_RADIUS内の軌斥点を不可逆に無効化）
+        for (const hole of this.entities) {
+            if (!hole.isBlackHole) continue;
+            for (const other of this.entities) {
+                if (other.repulsiveTrailTimer <= 0) continue;
+                for (const p of other.trail) {
+                    if (!p.isRepulsive) continue; // 既に破壊済み、またはそもそも非アクティブな点は対象外
+                    const dx = p.x - hole.pos.x, dy = p.y - hole.pos.y;
+                    if (dx * dx + dy * dy < HOLE_EFFECT_RADIUS * HOLE_EFFECT_RADIUS) {
+                        p.isRepulsive = false;
+                        p.destroyedByHole = true;
+                        // 破壊演出（撃破エフェクトの粒子を流用、1点あたり少数に抑制）
+                        for (let k = 0; k < 8; k++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const speed = Math.random() * 250;
+                            const life = Math.random() * 0.4 + 0.3;
+                            const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
+                            this.particles.push(new Particle(p.x, p.y, vel, COLOR_ITEM_REPULSIVE, life, 1.5));
+                        }
+                    }
+                }
+            }
+        }
 
         // 斥力トレイル（Repulsive Trail）の衝突判定
         // 線分と円の衝突判定を行い、反射ベクトルを計算
         for (const entity of this.entities) {
-            if (entity.isStealthActive()) continue; // Stealth check for repulsive trail
+            if (entity.isStealthActive() || entity.isBlackHole) continue; // Stealth check for repulsive trail / ブラックホールは反射判定を無視して直進
 
             for (const other of this.entities) {
                 if (entity === other) continue;
@@ -1235,6 +1290,7 @@ export class GameEngine {
                 const A = this.entities[i], B = this.entities[j];
                 if (A.owner === B || B.owner === A) continue;
                 if (A.isSatellite && B.isSatellite) continue;
+                if (A.isBlackHole && B.isBlackHole) continue;
                 const dx = B.pos.x - A.pos.x; const dy = B.pos.y - A.pos.y; const distSq = dx * dx + dy * dy;
                 if (distSq > 0) {
                     // 難易度に基づいた重力定数を使用
@@ -1307,12 +1363,56 @@ export class GameEngine {
                         fOnA = fOnA.scale(coolFactor); fOnB = fOnB.scale(coolFactor);
                     }
 
-                    A.applyForce(fOnA); B.applyForce(fOnB);
+                    // ブラックホール効果範囲内での重力減衰：居続けた時間に応じて1秒あたりHOLE_GRAVITY_DECAY_RATE倍で指数的に減衰、範囲外に出るとリセット
+                    if (A.isBlackHole) {
+                        if (dist < HOLE_EFFECT_RADIUS) {
+                            const decayed = (A.gravityDecayFactors.get(B) ?? 1.0) * Math.pow(HOLE_GRAVITY_DECAY_RATE, dt);
+                            A.gravityDecayFactors.set(B, decayed);
+                            fOnB = fOnB.scale(decayed);
+                        } else if (A.gravityDecayFactors.has(B)) {
+                            A.gravityDecayFactors.delete(B);
+                        }
+                    }
+                    if (B.isBlackHole) {
+                        if (dist < HOLE_EFFECT_RADIUS) {
+                            const decayed = (B.gravityDecayFactors.get(A) ?? 1.0) * Math.pow(HOLE_GRAVITY_DECAY_RATE, dt);
+                            B.gravityDecayFactors.set(A, decayed);
+                            fOnA = fOnA.scale(decayed);
+                        } else if (B.gravityDecayFactors.has(A)) {
+                            B.gravityDecayFactors.delete(A);
+                        }
+                    }
+
+                    // ブラックホールは他者に重力を与えるが、他者からは重力を受けない（外力を一切受け付けない）
+                    if (!A.isBlackHole) A.applyForce(fOnA);
+                    if (!B.isBlackHole) B.applyForce(fOnB);
                     if (A.isPlayer || B.isPlayer) {
                         playerTotalGravityForce += A.isPlayer ? fOnA.length() : fOnB.length();
                         minDangerDist = Math.min(minDangerDist, dist - A.radius - B.radius);
                     }
                 }
+            }
+        }
+
+        // ブラックホールによる速度増幅（接線成分のみ、距離に応じて指数的に増幅）
+        for (const hole of this.entities) {
+            if (!hole.isBlackHole) continue;
+            for (const target of this.entities) {
+                if (target === hole || target.isBlackHole || target === hole.owner) continue;
+                const dx = target.pos.x - hole.pos.x, dy = target.pos.y - hole.pos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist <= 0 || dist >= HOLE_EFFECT_RADIUS) continue;
+
+                const rx = dx / dist, ry = dy / dist; // 動径方向単位ベクトル
+                const tx = -ry, ty = rx;               // 接線方向単位ベクトル
+                const vRadial = target.vel.x * rx + target.vel.y * ry;
+                const vTangential = target.vel.x * tx + target.vel.y * ty;
+
+                const growthRatePerSec = 1.0 + (1 - dist / HOLE_EFFECT_RADIUS) * (HOLE_CENTER_GROWTH_RATE - 1.0);
+                const newVTangential = vTangential * Math.pow(growthRatePerSec, dt);
+
+                target.vel.x = rx * vRadial + tx * newVTangential;
+                target.vel.y = ry * vRadial + ty * newVTangential;
             }
         }
 
@@ -1346,7 +1446,7 @@ export class GameEngine {
         for (let i = this.entities.length - 1; i >= 0; i--) {
             const e = this.entities[i];
             if (e.pos.x < 0 || e.pos.x > this.logicalWidth || e.pos.y < 0 || e.pos.y > this.logicalHeight) {
-                this.triggerEliminationEffect(e);
+                if (!e.isBlackHole) this.triggerEliminationEffect(e); // ブラックホールは撃破演出を出さない
                 if (e.isPlayer) {
                     // プレイヤー死亡
                     if (this.gameMode === GameMode.TUTORIAL) {
@@ -1359,8 +1459,8 @@ export class GameEngine {
                     }
                 } else {
                     // 敵死亡
-                    if (!e.isSatellite) this.killCount++;
-                    if (this.gameMode === GameMode.ENDLESS && !e.isSatellite) this.requestSpawnEnemy();
+                    if (!e.isSatellite && !e.isBlackHole) this.killCount++;
+                    if (this.gameMode === GameMode.ENDLESS && !e.isSatellite && !e.isBlackHole) this.requestSpawnEnemy();
                 }
                 this.entities.splice(i, 1);
             }
@@ -1517,6 +1617,7 @@ export class GameEngine {
                 const A = this.entities[i], B = this.entities[j];
                 if (A.owner === B || B.owner === A) continue;
                 if (A.isSatellite && B.isSatellite) continue;
+                if (A.isBlackHole && B.isBlackHole) continue;
                 const aVisualOpacity = A.isPlayer ? (A.stealthTimer > 0 ? 0 : 1) : A.stealthOpacity;
                 const bVisualOpacity = B.isPlayer ? (B.stealthTimer > 0 ? 0 : 1) : B.stealthOpacity;
                 const stealthLineAlpha = Math.min(aVisualOpacity, bVisualOpacity);

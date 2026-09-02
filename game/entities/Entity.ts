@@ -2,31 +2,31 @@ import { Vector2 } from '../Vector2';
 import {
     COLOR_PLAYER, COLOR_ENEMY, COLOR_ITEM_MASS, COLOR_ITEM_STEALTH, COLOR_ITEM_INVERSION,
     COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE, COLOR_ITEM_RAMJET_FRONT, COLOR_ITEM_RAMJET_REAR,
-    COLOR_ITEM_WAVE,
+    COLOR_ITEM_WAVE, COLOR_ITEM_HOLE_CORE, COLOR_ITEM_HOLE_GLOW,
     PLAYER_RADIUS, ENTITY_MASS, SATELLITE_RADIUS, SATELLITE_MASS, SATELLITE_TRAIL_LENGTH,
     TRAIL_LENGTH, TRAIL_LENGTH_EXTENDED, TRAIL_WIDTH,
     POWERUP_DURATION, MASS_BOOST_MULTIPLIER, MASS_BOOST_COOLING_TIME, STEALTH_TOTAL_DURATION, STEALTH_FADE_DURATION,
     INVERSION_DURATION, REPULSIVE_TRAIL_DURATION, CAPTURE_DURATION, CAPTURE_RADIUS,
     FRICTION, FRICTION_VEL_EXP, LABEL_PHYSICAL_FONT_SIZE, RAMJET_DURATION,
-    WAVE_WAITING, WAVE_INTERVAL
+    WAVE_WAITING, WAVE_INTERVAL, HOLE_MASS, HOLE_WAITING, HOLE_EFFECT_RADIUS
 } from '../../constants/gameConfig';
 
 // 軌跡の座標点
-export interface Point { x: number; y: number; isRepulsive?: boolean; }
+export interface Point { x: number; y: number; isRepulsive?: boolean; destroyedByHole?: boolean; }
 
 let cachedRamjetCanvas: HTMLCanvasElement | null = null;
 
 function getRamjetCanvas(): HTMLCanvasElement {
     if (cachedRamjetCanvas) return cachedRamjetCanvas;
-    
+
     const radius = 100;
     const canvas = document.createElement('canvas');
     canvas.width = radius * 2;
     canvas.height = radius * 2;
     const ctx = canvas.getContext('2d')!;
-    
+
     ctx.translate(radius, radius);
-    
+
     // 1. Conic gradient for angular fade (cos)
     // createConicGradient is supported in modern browsers
     if (ctx.createConicGradient) {
@@ -37,7 +37,7 @@ function getRamjetCanvas(): HTMLCanvasElement {
             const stop = i / stops;
             let normalizedAngle = angle;
             if (normalizedAngle > Math.PI) normalizedAngle -= Math.PI * 2;
-            
+
             if (Math.abs(normalizedAngle) <= Math.PI / 2) {
                 const cosVal = Math.cos(normalizedAngle);
                 conicGrad.addColorStop(stop, `rgba(30, 144, 255, ${Math.min(cosVal * 1.5, 1.0)})`);
@@ -71,7 +71,7 @@ function getRamjetCanvas(): HTMLCanvasElement {
             ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, angle1, angle2); ctx.fill();
         }
     }
-    
+
     // 2. Radial gradient for distance fade (masking)
     ctx.globalCompositeOperation = 'destination-in';
     const radialGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
@@ -81,18 +81,18 @@ function getRamjetCanvas(): HTMLCanvasElement {
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
-    
+
     cachedRamjetCanvas = canvas;
     return canvas;
 }
 
 export class Entity {
-    pos: Vector2; vel: Vector2; acc: Vector2; 
-    radius: number; mass: number; color: string; 
-    isPlayer: boolean; isCpu: boolean; 
+    pos: Vector2; vel: Vector2; acc: Vector2;
+    radius: number; mass: number; color: string;
+    isPlayer: boolean; isCpu: boolean;
     breakingValue: number; // 壁際でのブレーキ強度
     trail: Point[];        // 移動軌跡
-    
+
     // バフ・デバフタイマー
     massMultiplier: number = 1.0;
     thrustMultiplier: number = 1.0;
@@ -105,30 +105,36 @@ export class Entity {
     captureTimer: number = 0;
     ramjetTimer: number = 0;
     ramjetFlash: number = 0;
-    
+
     // 強奪スキル用
     captureProgress: Map<Entity, number> = new Map();
-    
+
     // 重力波スキル用
     waveChargeCount: number = 0;
     waveChargeTimer: number = 0;
     waveForce: Vector2 = new Vector2(); // 外部から受ける重力波の力
     waveForceTimer: number = 0;
-    
+
     // 衛星用
     isSatellite: boolean = false;
     owner: Entity | null = null;
-    
-    constructor(x: number, y: number, isPlayer: boolean, isSatellite: boolean = false, owner: Entity | null = null) {
+
+    // ブラックホール用
+    isBlackHole: boolean = false;
+    holeCharges: number[] = []; // チャージ中の各ブラックホールの残り待機時間（独立進行）
+    lastThrustDir: Vector2 = new Vector2(1, 0); // 直近のスラスト方向（ブラックホール射出方向の決定に使用。スラスト時にEngine側で更新）
+    gravityDecayFactors: Map<Entity, number> = new Map(); // ブラックホール用：効果範囲内に居続けた時間による重力減衰係数（相手ごと）
+
+    constructor(x: number, y: number, isPlayer: boolean, isSatellite: boolean = false, owner: Entity | null = null, isBlackHole: boolean = false) {
         this.pos = new Vector2(x, y); this.vel = new Vector2(); this.acc = new Vector2();
-        this.isSatellite = isSatellite; this.owner = owner;
+        this.isSatellite = isSatellite; this.owner = owner; this.isBlackHole = isBlackHole;
         this.radius = isSatellite ? SATELLITE_RADIUS : PLAYER_RADIUS;
-        this.mass = isSatellite ? SATELLITE_MASS : ENTITY_MASS;
-        this.isPlayer = isPlayer; this.isCpu = !isPlayer && !isSatellite;
+        this.mass = isSatellite ? SATELLITE_MASS : (isBlackHole ? HOLE_MASS : ENTITY_MASS);
+        this.isPlayer = isPlayer; this.isCpu = !isPlayer && !isSatellite && !isBlackHole;
         this.color = isSatellite ? '#FFFFFF' : (isPlayer ? COLOR_PLAYER : COLOR_ENEMY);
         this.breakingValue = 0; this.trail = [];
     }
-    
+
     // 現在の質量（バフ込み）
     getCurrentMass(): number { return this.mass * this.massMultiplier; }
 
@@ -176,7 +182,7 @@ export class Entity {
     hasActiveItemEffect(): boolean {
         return this.powerupTimer > 0 || this.stealthTimer > 0 || this.inversionTimer > 0 ||
             this.repulsiveTrailTimer > 0 || this.captureTimer > 0 || this.ramjetTimer > 0 ||
-            this.waveChargeCount > 0;
+            this.waveChargeCount > 0 || this.holeCharges.length > 0;
     }
 
 
@@ -199,12 +205,12 @@ export class Entity {
         if (this.inversionTimer > 0) this.inversionTimer -= dt;
         if (this.captureTimer > 0) this.captureTimer -= dt;
         if (this.ramjetTimer > 0) this.ramjetTimer -= dt;
-        
+
         if (this.ramjetFlash > 0) {
             this.ramjetFlash -= dt * 6; // 約0.16秒でフェードアウト
             if (this.ramjetFlash < 0) this.ramjetFlash = 0;
         }
-        
+
         // 斥力トレイル処理
         if (this.repulsiveTrailTimer > 0) {
             this.repulsiveTrailTimer -= dt;
@@ -230,52 +236,83 @@ export class Entity {
             }
             if (this.stealthTimer <= 0) { this.stealthOpacity = 1.0; this.stealthTimer = 0; }
         } else { this.stealthOpacity = 1.0; }
-        
+
         // 重力波によるノックバック適用
         if (this.waveForceTimer > 0) { this.applyForce(this.waveForce); this.waveForceTimer -= dt; }
-        
+
         // 速度の更新
-        this.vel.x += this.acc.x * dt; 
+        this.vel.x += this.acc.x * dt;
         this.vel.y += this.acc.y * dt;
-        
-        // 摩擦（空気抵抗的な減速）
-        const speed = this.vel.length();
-        if (speed > 0) {
-            const frictionForceMagnitude = FRICTION * Math.pow(speed, FRICTION_VEL_EXP);
-            const frictionAccMagnitude = frictionForceMagnitude / this.getCurrentMass();
-            const frictionDecel = frictionAccMagnitude * dt;
-            
-            if (frictionDecel >= speed) {
-                this.vel.x = 0; this.vel.y = 0;
-            } else {
-                const factor = (speed - frictionDecel) / speed;
-                this.vel.x *= factor; this.vel.y *= factor;
+
+        // 摩擦（空気抵抗的な減速）：ブラックホールは一切の外力を受け付けないため対象外
+        if (!this.isBlackHole) {
+            const speed = this.vel.length();
+            if (speed > 0) {
+                const frictionForceMagnitude = FRICTION * Math.pow(speed, FRICTION_VEL_EXP);
+                const frictionAccMagnitude = frictionForceMagnitude / this.getCurrentMass();
+                const frictionDecel = frictionAccMagnitude * dt;
+
+                if (frictionDecel >= speed) {
+                    this.vel.x = 0; this.vel.y = 0;
+                } else {
+                    const factor = (speed - frictionDecel) / speed;
+                    this.vel.x *= factor; this.vel.y *= factor;
+                }
             }
         }
 
         // 位置の更新
-        this.pos.x += this.vel.x * dt; 
+        this.pos.x += this.vel.x * dt;
         this.pos.y += this.vel.y * dt;
-        
+
         // 加速度のリセット
         this.acc.x = 0; this.acc.y = 0;
-        
+
         // 軌跡の更新
         const maxLen = this.repulsiveTrailTimer > 0 ? TRAIL_LENGTH_EXTENDED : this.isSatellite ? SATELLITE_TRAIL_LENGTH : TRAIL_LENGTH;
         if (this.trail.length > maxLen) this.trail.shift();
-        this.trail.push({ 
-            x: this.pos.x, 
+        this.trail.push({
+            x: this.pos.x,
             y: this.pos.y,
             isRepulsive: this.repulsiveTrailTimer > 0
         });
     }
 
     draw(ctx: CanvasRenderingContext2D, scaleFactor: number) {
+        // ブラックホール本体（射出後）：降着円盤風の専用描画のみ行う
+        if (this.isBlackHole) {
+            const pulse = (Math.sin(Date.now() / 150) + 1) / 2;
+            ctx.save();
+            ctx.globalAlpha = 1.0;
+            // 外縁：紫の発光（加算合成のまま、大きめ・ぼかし強めでアイテムアイコンとは違う見た目にする）
+            ctx.shadowBlur = 25 + pulse * 15;
+            ctx.shadowColor = COLOR_ITEM_HOLE_GLOW;
+            ctx.fillStyle = COLOR_ITEM_HOLE_GLOW;
+            ctx.beginPath();
+            ctx.arc(this.pos.x, this.pos.y, this.radius * (2.1 + pulse * 0.2), 0, Math.PI * 2);
+            ctx.fill();
+
+            // 中央：通常合成に戻して黒く塗る（加算合成のままだと下地の紫と混ざり黒く見えないため）＋白い縁取り
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+            ctx.beginPath();
+            ctx.arc(this.pos.x, this.pos.y, this.radius * 1.7, 0, Math.PI * 2);
+            ctx.fillStyle = COLOR_ITEM_HOLE_CORE;
+            ctx.fill();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2 / scaleFactor;
+            ctx.stroke();
+
+            ctx.restore();
+            return;
+        }
+
         const isPowered = this.massMultiplier > 1.0;
         const isInverted = this.isInversionActive();
         const isCapturing = this.isCaptureActive();
         const hasOtherItemEffect = isPowered || isInverted || this.isRamjetActive() ||
-            (this.waveChargeCount > 0 && this.waveChargeTimer > 0) || this.ramjetFlash > 0;
+            (this.waveChargeCount > 0 && this.waveChargeTimer > 0) || this.holeCharges.length > 0 || this.ramjetFlash > 0;
 
         if (this.stealthOpacity <= 0 && this.repulsiveTrailTimer <= 0 && !isCapturing && !hasOtherItemEffect) return;
 
@@ -288,29 +325,29 @@ export class Entity {
 
         if (this.trail.length > 1 && (stealthTrailAlpha > 0 || this.repulsiveTrailTimer > 0)) {
             // Normal Trail
+            // 破壊済み(destroyedByHole)の区間は描画自体をスキップして見た目上消す（isRepulsiveと同様に経路を分断）
             if (stealthTrailAlpha > 0) {
+                const gradient = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.pos.x, this.pos.y);
+                gradient.addColorStop(0, 'rgba(0,0,0,0)');
+                gradient.addColorStop(1, this.color);
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = isPowered ? TRAIL_WIDTH * 2 : (this.isSatellite ? TRAIL_WIDTH * 0.8 : TRAIL_WIDTH);
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
                 ctx.beginPath();
                 let moved = false;
                 for (let i = 0; i < this.trail.length; i++) {
-                    if (this.trail[i].isRepulsive) {
+                    if (this.trail[i].isRepulsive || this.trail[i].destroyedByHole) {
                         if (moved) ctx.stroke();
                         moved = false;
                         ctx.beginPath(); // Break path
-                        continue; 
+                        continue;
                     }
                     if (!moved) { ctx.moveTo(this.trail[i].x, this.trail[i].y); moved = true; }
                     else { ctx.lineTo(this.trail[i].x, this.trail[i].y); }
                 }
-                if (moved) {
-                    const gradient = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.pos.x, this.pos.y);
-                    gradient.addColorStop(0, 'rgba(0,0,0,0)'); 
-                    gradient.addColorStop(1, this.color);
-                    ctx.strokeStyle = gradient; 
-                    ctx.lineWidth = isPowered ? TRAIL_WIDTH * 2 : (this.isSatellite ? TRAIL_WIDTH * 0.8 : TRAIL_WIDTH);
-                    ctx.lineCap = 'round'; 
-                    ctx.lineJoin = 'round'; 
-                    ctx.stroke();
-                }
+                if (moved) ctx.stroke();
             }
 
             // Repulsive Trail (Red, vibrating)
@@ -321,7 +358,7 @@ export class Entity {
                 ctx.shadowBlur = 10;
                 ctx.strokeStyle = COLOR_ITEM_REPULSIVE;
                 ctx.lineWidth = TRAIL_WIDTH * 1.5;
-                
+
                 ctx.beginPath();
                 let rMoved = false;
                 for (let i = 0; i < this.trail.length; i++) {
@@ -355,17 +392,17 @@ export class Entity {
             ctx.fill();
             ctx.restore();
         }
-        
+
         // Ramjet Effect (常に表示)
         if (this.isRamjetActive()) {
             ctx.save();
             ctx.globalAlpha = 1.0;
             ctx.translate(this.pos.x, this.pos.y);
             ctx.rotate(Math.atan2(this.vel.y, this.vel.x));
-            
+
             const radius = 100;
             ctx.drawImage(getRamjetCanvas(), -radius, -radius);
-            
+
             ctx.restore();
         }
 
@@ -375,18 +412,18 @@ export class Entity {
             const timeRemaining = this.waveChargeTimer;
             // Shrink from radius + 100 down to radius
             const chargeRadius = this.radius + timeRemaining * 100;
-            
+
             ctx.strokeStyle = COLOR_ITEM_WAVE;
             ctx.lineWidth = 4 / scaleFactor;
             // Fade in as it gets closer to 0
             ctx.globalAlpha = Math.min(1.0, 1.0 - (timeRemaining / WAVE_INTERVAL));
-            
+
             ctx.translate(this.pos.x, this.pos.y);
             // Rotate the circle as it shrinks
             ctx.rotate(timeRemaining * Math.PI * 2);
-            
+
             ctx.beginPath();
-            
+
             // ビリビリした演出（ジッターを加えた円）
             const numPoints = 60;
             for (let i = 0; i <= numPoints; i++) {
@@ -403,37 +440,101 @@ export class Entity {
                 }
             }
             ctx.stroke();
-            
+
             // Draw 4 converging lightning arrows
             ctx.lineWidth = 2 / scaleFactor;
             for (let i = 0; i < 7; i++) {
                 const angle = (i / 7) * Math.PI * 2;
                 const cosA = Math.cos(angle);
                 const sinA = Math.sin(angle);
-                
+
                 ctx.beginPath();
                 let startX = cosA * (chargeRadius + 5);
                 let startY = sinA * (chargeRadius + 5);
                 ctx.moveTo(startX, startY);
-                
+
                 // ギザギザの線を描画
                 const steps = 4;
                 for (let j = 1; j <= steps; j++) {
                     const progress = j / steps;
                     const targetX = cosA * (chargeRadius + 5 * (1 - progress));
                     const targetY = sinA * (chargeRadius + 5 * (1 - progress));
-                    
+
                     // 横方向のブレ
                     const perpX = -sinA;
                     const perpY = cosA;
                     const jitter = (Math.random() - 0.5) * 20;
-                    
+
                     ctx.lineTo(targetX + perpX * jitter, targetY + perpY * jitter);
                 }
                 ctx.stroke();
             }
-            
+
             ctx.restore();
+        }
+
+        // Black Hole Charge Effect（常に表示・チャージごとに独立したリング）
+        if (this.holeCharges.length > 0) {
+            for (const remaining of this.holeCharges) {
+                ctx.save();
+                const timeRemaining = Math.max(0, remaining);
+                const chargeRadius = this.radius + timeRemaining * 100;
+
+                ctx.strokeStyle = COLOR_ITEM_HOLE_GLOW;
+                ctx.lineWidth = 4 / scaleFactor;
+                ctx.globalAlpha = Math.min(1.0, 1.0 - (timeRemaining / HOLE_WAITING));
+
+                ctx.translate(this.pos.x, this.pos.y);
+                ctx.rotate(timeRemaining * Math.PI * 2);
+
+                ctx.beginPath();
+                const numPoints = 60;
+                for (let i = 0; i <= numPoints; i++) {
+                    const angle = (i / numPoints) * Math.PI * 2;
+                    const jitter = (Math.random() - 0.5) * 20 * (1.0 - timeRemaining / HOLE_WAITING);
+                    const r = chargeRadius + jitter;
+                    const x = Math.cos(angle) * r;
+                    const y = Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                ctx.restore();
+
+                // 射出方向ガイド：2本の線分の間の角度が90°→0°へ線形に狭まり、射出方向を予告する
+                const guideAngle = (Math.PI / 4) * (timeRemaining / HOLE_WAITING); // 中心線からの片側角度（初期45°→終端0°）
+                const centerAngle = Math.atan2(this.lastThrustDir.y, this.lastThrustDir.x);
+                const leftAngle = centerAngle - guideAngle;
+                const rightAngle = centerAngle + guideAngle;
+                const tipX = this.pos.x + Math.cos(centerAngle) * HOLE_EFFECT_RADIUS;
+                const tipY = this.pos.y + Math.sin(centerAngle) * HOLE_EFFECT_RADIUS;
+                const leftX = this.pos.x + Math.cos(leftAngle) * HOLE_EFFECT_RADIUS;
+                const leftY = this.pos.y + Math.sin(leftAngle) * HOLE_EFFECT_RADIUS;
+                const rightX = this.pos.x + Math.cos(rightAngle) * HOLE_EFFECT_RADIUS;
+                const rightY = this.pos.y + Math.sin(rightAngle) * HOLE_EFFECT_RADIUS;
+
+                ctx.save();
+                const guideGradient = ctx.createLinearGradient(this.pos.x, this.pos.y, tipX, tipY);
+                guideGradient.addColorStop(0, 'rgb(54, 27, 152)');
+                guideGradient.addColorStop(1, 'rgba(91, 46, 255, 0)');
+
+                // 2本の線分の間の薄い塗りつぶし
+                ctx.fillStyle = guideGradient;
+                ctx.beginPath();
+                ctx.moveTo(this.pos.x, this.pos.y);
+                ctx.lineTo(leftX, leftY);
+                ctx.lineTo(rightX, rightY);
+                ctx.closePath();
+                ctx.fill();
+
+                // 2本の線分そのもの
+                ctx.strokeStyle = guideGradient;
+                ctx.lineWidth = 2 / scaleFactor;
+                ctx.beginPath();
+                ctx.moveTo(this.pos.x, this.pos.y); ctx.lineTo(leftX, leftY);
+                ctx.moveTo(this.pos.x, this.pos.y); ctx.lineTo(rightX, rightY);
+                ctx.stroke();
+                ctx.restore();
+            }
         }
 
         // リング描画（質量増加・反転・奪取）：透明化中も表示するため不透明度を上書き
@@ -524,7 +625,7 @@ export class Entity {
             if (isCapturing) label_dist += 4;
             if (this.isRamjetActive()) label_dist += 4;
             if (this.isStealthActive()) label_dist += 4;
-            
+
             const labelY = this.pos.y - (label_dist / scaleFactor);
             ctx.fillText(label, this.pos.x, labelY);
 
@@ -549,7 +650,7 @@ export class Entity {
                 // バー
                 ctx.fillStyle = effect.color;
                 ctx.fillRect(this.pos.x - barWidth / 2, currentBarY, barWidth * effect.ratio, barHeight);
-                
+
                 currentBarY += barHeight + spacing;
             }
 

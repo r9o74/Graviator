@@ -19,6 +19,7 @@ const ITEM_INFOS: ItemInfo[] = [
     { type: ItemType.REPULSIVE_TRAIL, name: "軌斥", englishName: "REFLECTRAIL", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
     { type: ItemType.CAPTURE, name: "強奪", englishName: "CAPTURE", desc: "接近した敵からアイテム効果を奪い取る。" },
     { type: ItemType.RAMJET, name: "ラムジェット", englishName: "RAMJET", desc: "進路上の敵を吸い込み、後方に吹き飛ばす。" },
+    { type: ItemType.HOLE, name: "ブラックホール", englishName: "BLACK HOLE", desc: "一定時間後に自分の進行方向へ黒点を射出。触れた対象を渦のように巻き込み加速させる。" },
 ];
 
 // アイテムのアイコンの描画コンポーネント（Engineの描画ロジックを流用）
