@@ -94,7 +94,7 @@ export const ITEM_SPAWN_INTERVAL_MAX = 4.0;
 
 // アイテム出現比率
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪：ラムジェット：ブラックホール
-export const item_ratio = [10, 10, 10, 10, 10, 7, 6, 6, 600];
+export const item_ratio = [10, 10, 10, 10, 10, 7, 6, 6, 10];
 
 
 // --- アイテム効果パラメータ ---
