@@ -15,7 +15,7 @@ export const DIFFICULTY_CONFIG = {
         cpuThrust: 1400.0,
         initialEnemyCount: 8,
         endlessInitialEnemyCount: 4,
-        speedLimit: 600.0,
+        speedLimit: 700.0,
     },
     HARD: {
         gravityConstant: 40000.0,
@@ -36,7 +36,7 @@ export const DIFFICULTY_CONFIG = {
         cpuThrust: 1000.0,
         initialEnemyCount: 0, // チュートリアルは進行管理で制御
         endlessInitialEnemyCount: 0,
-        speedLimit: 600.0,
+        speedLimit: 400.0,
     }
 };
 
@@ -53,9 +53,9 @@ export const GRAVITY_MAX = 250000.0;         // 重力の最大値制限（特�
 export const THRUST_FORCE = 1800.0;          // プレイヤーの推進力
 export const BREAKING_CONSTANT = 3.5;        // 壁際などでの減速係数
 export const WALL_MARGIN = 150;              // 壁からの危険エリア距離
-export const BREAK_BOOST = 25;               // 減速力のブースト係数
+export const BREAK_BOOST = 15;               // 減速力のブースト係数。小さいほど減速が強くなる
 export const SAFE_DISTANCE = 200;            // スポーン時の安全距離
-export const DIST_EXP = 0.88;                // 引力計算の距離の指数（1.0で物理的に正しい逆二乗則に近い挙動だが、ゲーム用に調整）
+export const DIST_EXP = 0.85;                // 引力計算の距離の指数（1.0で物理的に正しい逆二乗則に近い挙動だが、ゲーム用に調整）
 export const G_LINE_WIDTH = 1;               // 重力結合線の描画幅
 export const TRAIL_WIDTH = PLAYER_RADIUS / 1.8; // 軌跡の幅
 export const FRICTION = 0.100;               // 空間摩擦係数
@@ -94,7 +94,7 @@ export const ITEM_SPAWN_INTERVAL_MAX = 4.0;
 
 // アイテム出現比率
 // 質量増加：衛星：透明化：重力波：反転：軌斥：強奪：ラムジェット：ブラックホール
-export const item_ratio = [10, 10, 10, 10, 10, 7, 6, 6, 10];
+export const item_ratio = [10, 10, 10, 10, 10, 7, 6, 6, 100];
 
 
 // --- アイテム効果パラメータ ---
@@ -160,10 +160,15 @@ export const RAMJET_REAR_GAIN = -4.5;
 // ブラックホール
 export const HOLE_WAITING = 2.0;        // 取得〜射出までの待機秒数
 export const HOLE_VELOCITY = 120;       // 射出後の固定速度
-export const HOLE_MASS = 90;            // 重力計算に使う質量
+export const HOLE_MASS = 100;            // 重力計算に使う質量
 export const HOLE_EFFECT_RADIUS = 100;  // 速度増幅・軌斥破壊が及ぶ範囲
-export const HOLE_CENTER_GROWTH_RATE = 15.0; // 中心(dist=0)での角速度成長率(倍/秒)。外縁では1.0倍/秒(＝成長なし)
-export const HOLE_GRAVITY_DECAY_RATE = 0.60; // 効果範囲内に居続けた場合の重力減衰レート(1秒あたりの倍率)
+export const HOLE_CENTER_GROWTH_RATE = 18.0; // 中心(dist=0)での角速度成長率(倍/秒)。外縁では1.0倍/秒(＝成長なし)
+export const HOLE_GRAVITY_DECAY_RATE = 0.70; // 効果範囲内に居続けた場合の重力減衰レート(1秒あたりの倍率)
+
+// --- アカウントページ（個人記録）表示 ---
+// DBには論理座標の生値を保存し、表示時のみこの係数・単位で換算する（変更してもDB移行は不要）
+export const DISTANCE_DISPLAY_SCALE = 1;
+export const DISTANCE_UNIT_LABEL = 'px';
 
 
 

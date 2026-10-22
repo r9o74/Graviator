@@ -289,7 +289,7 @@ export class Entity {
             ctx.shadowColor = COLOR_ITEM_HOLE_GLOW;
             ctx.fillStyle = COLOR_ITEM_HOLE_GLOW;
             ctx.beginPath();
-            ctx.arc(this.pos.x, this.pos.y, this.radius * (2.1 + pulse * 0.2), 0, Math.PI * 2);
+            ctx.arc(this.pos.x, this.pos.y, this.radius * (2.5 + pulse * 0.2), 0, Math.PI * 2);
             ctx.fill();
 
             // 中央：通常合成に戻して黒く塗る（加算合成のままだと下地の紫と混ざり黒く見えないため）＋白い縁取り
@@ -297,7 +297,7 @@ export class Entity {
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
             ctx.beginPath();
-            ctx.arc(this.pos.x, this.pos.y, this.radius * 1.7, 0, Math.PI * 2);
+            ctx.arc(this.pos.x, this.pos.y, this.radius * 2.2, 0, Math.PI * 2);
             ctx.fillStyle = COLOR_ITEM_HOLE_CORE;
             ctx.fill();
             ctx.strokeStyle = '#FFFFFF';

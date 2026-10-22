@@ -1,54 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Item } from '../game/entities/Item';
-import { ItemType } from '../types';
-
-interface ItemInfo {
-    type: ItemType;
-    name: string;
-    englishName: string;
-    desc: string;
-}
-
-// アイテムの説明データ
-const ITEM_INFOS: ItemInfo[] = [
-    { type: ItemType.MASS_BOOST, name: "質量増加", englishName: "MASS BOOST", desc: "質量が大幅に増加し、敵を引き寄せる力が強くなる。" },
-    { type: ItemType.SATELLITE, name: "衛星", englishName: "SATELLITE", desc: "周囲に7つの衛星を発射し、近くの敵を自動で迎撃する。" },
-    { type: ItemType.INVISIBILITY, name: "透明化", englishName: "STEALTH", desc: "敵から認識されなくなる。一部アイテムの影響も受けなくなる。" },
-    { type: ItemType.GRAVITY_WAVE, name: "重力波", englishName: "GRAVITY WAVE", desc: "周囲に強力な重力波を放ち、範囲内の敵を弾き飛ばす。" },
-    { type: ItemType.INVERSION, name: "反転", englishName: "REPULSE", desc: "引力を斥力に反転させ、近づく敵を押し返す。" },
-    { type: ItemType.REPULSIVE_TRAIL, name: "軌斥", englishName: "REFLECTRAIL", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
-    { type: ItemType.CAPTURE, name: "強奪", englishName: "CAPTURE", desc: "接近した敵からアイテム効果を奪い取る。" },
-    { type: ItemType.RAMJET, name: "ラムジェット", englishName: "RAMJET", desc: "進路上の敵を吸い込み、後方に吹き飛ばす。" },
-    { type: ItemType.HOLE, name: "ブラックホール", englishName: "BLACK HOLE", desc: "全てを巻き込むブラックホールを射出する。" },
-];
-
-// アイテムのアイコンの描画コンポーネント（Engineの描画ロジックを流用）
-const ItemIcon = ({ type }: { type: ItemType }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        // アイテムインスタンスを作成して描画
-        const item = new Item(canvas.width / 2, canvas.height / 2, type);
-        let animId: number;
-
-        const render = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            item.update(0.016); // 少し回転させる
-            item.draw(ctx, 1.0); // scaleFactor = 1.0
-            animId = requestAnimationFrame(render);
-        };
-        render();
-
-        return () => cancelAnimationFrame(animId);
-    }, [type]);
-
-    return <canvas ref={canvasRef} width={80} height={80} className="w-[60px] h-[60px]" />;
-};
+import React from 'react';
+import { ITEM_INFOS } from '../constants/items';
+import { ItemIcon } from './ItemIcon';
 
 interface ItemGuideProps {
     onClose: () => void;

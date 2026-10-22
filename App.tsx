@@ -6,6 +6,7 @@ import InfoPanel from './components/InfoPanel';
 import VirtualJoystick from './components/VirtualJoystick';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { supabase, isSupabaseConfigured, saveScore, getProfile, updateProfile } from './lib/supabase';
+import { recordGameResult } from './lib/stats';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -16,7 +17,7 @@ function App() {
     const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(Difficulty.NORMAL);
     const [showItemGuide, setShowItemGuide] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
+    const [showAccount, setShowAccount] = useState(false);
     // 直前にプレイした（または選択された）モードを記憶
     const [lastGameMode, setLastGameMode] = useState<GameMode>(GameMode.SURVIVAL);
     
@@ -29,6 +30,8 @@ function App() {
 
     // スコア重複保存防止用
     const lastSavedRef = useRef<{mode: GameMode, difficulty: Difficulty, date: number} | null>(null);
+    // 個人記録の二重送信防止用（送信済みのプレイ通番）
+    const lastRecordedRunIdRef = useRef<number | null>(null);
 
     const [userName, setUserName] = useState<string>(localStorage.getItem('graviator_name') || '');
 
@@ -162,6 +165,18 @@ function App() {
         }
     }, [gameState, gameStats, userId, userName]);
 
+    // 個人記録の送信（ログイン済み・非匿名のみ。両モードの VICTORY / GAME_OVER が対象）
+    useEffect(() => {
+        if (!gameStats || !userId || isAnonymous) return;
+        if (gameState !== GameState.VICTORY && gameState !== GameState.GAME_OVER) return;
+        if (gameStats.mode === GameMode.TUTORIAL) return;
+        if (lastRecordedRunIdRef.current === gameStats.runId) return;
+
+        lastRecordedRunIdRef.current = gameStats.runId;
+        const cleared = gameState === GameState.VICTORY && gameStats.mode === GameMode.SURVIVAL;
+        recordGameResult(gameStats, cleared);
+    }, [gameState, gameStats, userId, isAnonymous]);
+
     useEffect(() => {
         if (!canvasRef.current) return;
         const engine = new GameEngine(
@@ -253,10 +268,10 @@ function App() {
                 return;
             }
 
-            // 3. 設定画面表示中の処理
-            if (showSettings) {
+            // 3. アカウント画面表示中の処理
+            if (showAccount) {
                 if (e.code === 'Escape') {
-                    setShowSettings(false);
+                    setShowAccount(false);
                     e.preventDefault();
                 }
                 return;
@@ -310,7 +325,7 @@ function App() {
 
         window.addEventListener('keydown', handleShortcut);
         return () => window.removeEventListener('keydown', handleShortcut);
-    }, [gameState, selectedDifficulty, lastGameMode, showItemGuide, showLeaderboard, showSettings]);
+    }, [gameState, selectedDifficulty, lastGameMode, showItemGuide, showLeaderboard, showAccount]);
 
     // ゲーム状態が変わった時（ジョイスティック表示の切り替えなど）にリサイズを実行
     useEffect(() => {
@@ -412,8 +427,8 @@ function App() {
                 setShowItemGuide={setShowItemGuide}
                 showLeaderboard={showLeaderboard}
                 setShowLeaderboard={setShowLeaderboard}
-                showSettings={showSettings}
-                setShowSettings={setShowSettings}
+                showAccount={showAccount}
+                setShowAccount={setShowAccount}
                 userName={userName}
                 setUserName={setUserName}
                 userId={userId}

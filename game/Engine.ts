@@ -30,6 +30,7 @@ import { VisualWave } from './effects/VisualWave.ts';
 import { Particle } from './entities/Particle.ts';
 import { Item } from './entities/Item.ts';
 import { Entity, Point } from './entities/Entity.ts';
+import { ITEM_KEYS } from '../constants/items.ts';
 
 
 
@@ -69,7 +70,10 @@ export class GameEngine {
     // 統計・スコア
     initialEnemyCount: number = DEFAULT_ENEMY_NUMBER_SURVIVAL;
     maxSpeedRecorded: number = 0; maxGravityRecorded: number = 0; killCount: number = 0;
-    itemsUsedCount: number = 0; // プレイヤーが使用したアイテム数
+    itemsUsedCount: number = 0; // プレイヤーが使用したアイテム数（取得＋強奪）
+    itemUseCounts: Partial<Record<ItemType, number>> = {}; // プレイヤーのアイテム別使用数（取得＋強奪）
+    distanceTraveled: number = 0; // プレイヤーの移動距離（論理座標）
+    runId: number = 0; // プレイごとの通番（記録の二重送信防止用）
 
     // 現在の難易度設定値
     currentGravityConstant: number = DEFAULT_GRAVITY_CONSTANT;
@@ -176,6 +180,7 @@ export class GameEngine {
         this.startTime = Date.now() + 1000; // 旧変数は念のため残すが、ロジックはsurvivalTimeを使用
         this.survivalTime = -1.0;
         this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.itemsUsedCount = 0; this.frameCount = 0;
+        this.itemUseCounts = {}; this.distanceTraveled = 0; this.runId++;
         this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
 
         // プレイヤーと敵のスポーン設定
@@ -342,6 +347,12 @@ export class GameEngine {
             const vel = new Vector2(dirX / dist * 300, dirY / dist * 300);
             this.particles.push(new Particle(startX, startY, vel, color, 0.8));
         }
+    }
+
+    // プレイヤーのアイテム使用を記録（取得・強奪の両方から呼ぶ）
+    countPlayerItemUse(type: ItemType) {
+        this.itemsUsedCount++;
+        this.itemUseCounts[type] = (this.itemUseCounts[type] ?? 0) + 1;
     }
 
     // 敵AIの更新処理
@@ -834,6 +845,11 @@ export class GameEngine {
             dangerLevel: 0,
             kills: this.killCount,
             itemsUsed: this.itemsUsedCount,
+            distance: this.distanceTraveled,
+            itemCounts: Object.fromEntries(
+                Object.entries(this.itemUseCounts).map(([type, count]) => [ITEM_KEYS[Number(type) as ItemType], count])
+            ),
+            runId: this.runId,
             tutorialMessage: this.gameMode === GameMode.TUTORIAL ? this.tutorialMessage : undefined,
             tutorial_step_show: this.gameMode === GameMode.TUTORIAL ? this.tutorial_step_show : undefined,
             highlightJoystick: highlightJoystick
@@ -955,7 +971,7 @@ export class GameEngine {
                     else if (item.type === ItemType.HOLE) fColor = COLOR_ITEM_HOLE_GLOW;
 
                     this.flashColor = fColor; itemConsumed = true;
-                    if (entity.isPlayer) this.itemsUsedCount++;
+                    if (entity.isPlayer) this.countPlayerItemUse(item.type);
                     for (let p = 0; p < 30; p++) {
                         const angle = Math.random() * Math.PI * 2; const speed = 100 + Math.random() * 200;
                         const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
@@ -987,15 +1003,16 @@ export class GameEngine {
 
                 if (distSq < CAPTURE_RADIUS * CAPTURE_RADIUS) {
                     // 奪える候補をリストアップ
-                    const stealableItems: { type: string, time: number, color: string }[] = [];
+                    // itemType は記録用（強奪成功時にアイテム別使用数として加算）
+                    const stealableItems: { type: string, itemType: ItemType, time: number, color: string }[] = [];
 
-                    if (victim.powerupTimer > 0) stealableItems.push({ type: 'MASS', time: CAPTURE_TIME_MASS, color: COLOR_ITEM_MASS });
-                    if (victim.stealthTimer > 0) stealableItems.push({ type: 'STEALTH', time: CAPTURE_TIME_STEALTH, color: COLOR_ITEM_STEALTH });
-                    if (victim.inversionTimer > 0) stealableItems.push({ type: 'INVERSION', time: CAPTURE_TIME_INVERSION, color: COLOR_ITEM_INVERSION });
-                    if (victim.repulsiveTrailTimer > 0) stealableItems.push({ type: 'TRAIL', time: CAPTURE_TIME_TRAIL, color: COLOR_ITEM_REPULSIVE });
-                    if (victim.waveChargeCount > 0) stealableItems.push({ type: 'WAVE', time: CAPTURE_TIME_WAVE, color: COLOR_ITEM_WAVE });
-                    if (victim.ramjetTimer > 0) stealableItems.push({ type: 'RAMJET', time: CAPTURE_TIME_RAMJET, color: COLOR_ITEM_RAMJET_FRONT });
-                    if (victim.holeCharges.length > 0) stealableItems.push({ type: 'HOLE', time: CAPTURE_TIME_HOLE, color: COLOR_ITEM_HOLE_GLOW });
+                    if (victim.powerupTimer > 0) stealableItems.push({ type: 'MASS', itemType: ItemType.MASS_BOOST, time: CAPTURE_TIME_MASS, color: COLOR_ITEM_MASS });
+                    if (victim.stealthTimer > 0) stealableItems.push({ type: 'STEALTH', itemType: ItemType.INVISIBILITY, time: CAPTURE_TIME_STEALTH, color: COLOR_ITEM_STEALTH });
+                    if (victim.inversionTimer > 0) stealableItems.push({ type: 'INVERSION', itemType: ItemType.INVERSION, time: CAPTURE_TIME_INVERSION, color: COLOR_ITEM_INVERSION });
+                    if (victim.repulsiveTrailTimer > 0) stealableItems.push({ type: 'TRAIL', itemType: ItemType.REPULSIVE_TRAIL, time: CAPTURE_TIME_TRAIL, color: COLOR_ITEM_REPULSIVE });
+                    if (victim.waveChargeCount > 0) stealableItems.push({ type: 'WAVE', itemType: ItemType.GRAVITY_WAVE, time: CAPTURE_TIME_WAVE, color: COLOR_ITEM_WAVE });
+                    if (victim.ramjetTimer > 0) stealableItems.push({ type: 'RAMJET', itemType: ItemType.RAMJET, time: CAPTURE_TIME_RAMJET, color: COLOR_ITEM_RAMJET_FRONT });
+                    if (victim.holeCharges.length > 0) stealableItems.push({ type: 'HOLE', itemType: ItemType.HOLE, time: CAPTURE_TIME_HOLE, color: COLOR_ITEM_HOLE_GLOW });
 
                     if (stealableItems.length > 0) {
                         // 必要な時間が短い順にソート（奪いやすい順）
@@ -1095,6 +1112,8 @@ export class GameEngine {
 
                             if (stoleSomething) {
                                 capturer.captureProgress.set(victim, 0);
+                                // 強奪で奪った分も使用アイテム数に加算
+                                if (capturer.isPlayer) this.countPlayerItemUse(targetToSteal.itemType);
                             }
                         }
                     }
@@ -1419,7 +1438,10 @@ export class GameEngine {
         // ラムジェットの爆発フラッシュ制御
         // エンティティの位置更新
         this.entities.forEach(e => {
+            const prevX = e.pos.x, prevY = e.pos.y;
             e.update(dt);
+            // プレイヤーの移動距離を記録（ポーズ中は update 自体が呼ばれないため加算されない）
+            if (e.isPlayer) this.distanceTraveled += Math.hypot(e.pos.x - prevX, e.pos.y - prevY);
             // プレイヤーの速度制限
             if (e.isPlayer) {
                 let speedLimit = Infinity;

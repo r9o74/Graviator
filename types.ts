@@ -52,7 +52,10 @@ export interface GameStats {
     timeSurvived: number;    // 生存時間（秒）
     dangerLevel: number;     // 危険度（0-100%: 壁や敵との距離に基づく）
     kills: number;           // 撃破数
-    itemsUsed: number;       // 使用アイテム数
+    itemsUsed: number;       // 使用アイテム数（取得＋強奪）
+    distance: number;        // 移動距離（論理座標）
+    itemCounts: Record<string, number>; // アイテム別使用数（キーは ITEM_KEYS）
+    runId: number;           // プレイごとの通番（記録の二重送信防止用）
     tutorialMessage?: string; // チュートリアル用の指示テキスト
     tutorial_step_show?: string; // チュートリアルのステップ表示 (e.g. "STEP 1/3")
     highlightJoystick?: boolean; // ジョイスティックをハイライトするか
