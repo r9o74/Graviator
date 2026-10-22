@@ -19,7 +19,7 @@ const ITEM_INFOS: ItemInfo[] = [
     { type: ItemType.REPULSIVE_TRAIL, name: "軌斥", englishName: "REFLECTRAIL", desc: "移動した軌跡に壁判定を残し、触れた敵を弾き返す。" },
     { type: ItemType.CAPTURE, name: "強奪", englishName: "CAPTURE", desc: "接近した敵からアイテム効果を奪い取る。" },
     { type: ItemType.RAMJET, name: "ラムジェット", englishName: "RAMJET", desc: "進路上の敵を吸い込み、後方に吹き飛ばす。" },
-    { type: ItemType.HOLE, name: "ブラックホール", englishName: "BLACK HOLE", desc: "一定時間後に自分の進行方向へ黒点を射出。触れた対象を渦のように巻き込み加速させる。" },
+    { type: ItemType.HOLE, name: "ブラックホール", englishName: "BLACK HOLE", desc: "全てを巻き込むブラックホールを射出する。" },
 ];
 
 // アイテムのアイコンの描画コンポーネント（Engineの描画ロジックを流用）
@@ -60,7 +60,7 @@ export const ItemGuide: React.FC<ItemGuideProps> = ({ onClose }) => {
         <div className="w-full h-full flex flex-col relative z-20">
             <div className="flex items-center justify-between mb-2 shrink-0">
                 <h2 className="text-2xl font-fugaz text-cyan-400">ITEM GUIDE</h2>
-                <button 
+                <button
                     onClick={onClose}
                     className="p-2 text-white/70 hover:text-white transition-colors"
                 >
