@@ -10,8 +10,7 @@ import {
     COLOR_PLAYER, COLOR_ENEMY, COLOR_PARTICLE, COLOR_ITEM_MASS, COLOR_ITEM_SATELLITE, COLOR_ITEM_STEALTH,
     COLOR_ITEM_WAVE, COLOR_ITEM_INVERSION, COLOR_ITEM_REPULSIVE, COLOR_ITEM_CAPTURE, COLOR_ITEM_HOLE_GLOW,
     PARTICLE_PHYSICAL_RADIUS, LABEL_PHYSICAL_FONT_SIZE,
-    ITEM_RADIUS, ITEM_AREA_RADIUS, ITEM_SPAWN_START_DELAY, ITEM_SPAWN_INTERVAL_MIN, ITEM_SPAWN_INTERVAL_MAX,
-    item_ratio,
+    ITEM_RADIUS, ITEM_AREA_RADIUS, ITEM_SPAWN_START_DELAY,
     POWERUP_DURATION,
     SATELLITE_MASS, SATELLITE_RADIUS, SATELLITE_THRUST, SATELLITE_NUM, SATELLITE_TRAIL_LENGTH,
     STEALTH_FADE_DURATION, STEALTH_INVIS_DURATION, STEALTH_TOTAL_DURATION, GRAVITY_REDUCTION,
@@ -31,6 +30,7 @@ import { Particle } from './entities/Particle.ts';
 import { Item } from './entities/Item.ts';
 import { Entity, Point } from './entities/Entity.ts';
 import { ITEM_KEYS } from '../constants/items.ts';
+import { SpawnParams, createDefaultSpawnParams } from '../constants/testMode.ts';
 
 
 
@@ -91,6 +91,8 @@ export class GameEngine {
     shakeIntensity: number = 0; shakeDecay: number = 0.9;
     flashOpacity: number = 0; flashColor: string = '#FFFFFF';
     private itemSpawnTimer: number = ITEM_SPAWN_START_DELAY;
+    // アイテム出現パラメータ（通常はデフォルト。テストモード中のみ差し替えられる）
+    private spawnParams: SpawnParams = createDefaultSpawnParams();
 
     // チュートリアル状態
     tutorialStep: number = 0;
@@ -181,7 +183,7 @@ export class GameEngine {
         this.survivalTime = -1.0;
         this.maxSpeedRecorded = 0; this.maxGravityRecorded = 0; this.killCount = 0; this.itemsUsedCount = 0; this.frameCount = 0;
         this.itemUseCounts = {}; this.distanceTraveled = 0; this.runId++;
-        this.itemSpawnTimer = ITEM_SPAWN_START_DELAY + 1.0;
+        this.itemSpawnTimer = this.spawnParams.startDelay + 1.0;
 
         // プレイヤーと敵のスポーン設定
         const playerX = this.logicalWidth / 2;
@@ -347,6 +349,11 @@ export class GameEngine {
             const vel = new Vector2(dirX / dist * 300, dirY / dist * 300);
             this.particles.push(new Particle(startX, startY, vel, color, 0.8));
         }
+    }
+
+    // アイテム出現パラメータの差し替え（null でデフォルトに戻す）。出現間隔は次の出現から、開始遅延は次のゲームから反映
+    setSpawnParams(params: SpawnParams | null) {
+        this.spawnParams = params ? { ...params, itemRatio: [...params.itemRatio] } : createDefaultSpawnParams();
     }
 
     // プレイヤーのアイテム使用を記録（取得・強奪の両方から呼ぶ）
@@ -914,21 +921,23 @@ export class GameEngine {
         this.itemSpawnTimer -= dt;
         if (this.gameMode !== GameMode.TUTORIAL && this.itemSpawnTimer <= 0) {
             const x = Math.random() * (this.logicalWidth - 100) + 50; const y = Math.random() * (this.logicalHeight - 100) + 50;
-            const r = Math.random();
-            let type = ItemType.MASS_BOOST;
-            let sum_ratio = item_ratio.reduce((acc, val) => acc + val, 0)
-            if (r < item_ratio[0] / sum_ratio) type = ItemType.MASS_BOOST;
-            else if (r < (item_ratio[0] + item_ratio[1]) / sum_ratio) type = ItemType.SATELLITE;
-            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2]) / sum_ratio) type = ItemType.INVISIBILITY;
-            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3]) / sum_ratio) type = ItemType.GRAVITY_WAVE;
-            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4]) / sum_ratio) type = ItemType.INVERSION;
-            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4] + item_ratio[5]) / sum_ratio) type = ItemType.REPULSIVE_TRAIL;
-            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4] + item_ratio[5] + item_ratio[6]) / sum_ratio) type = ItemType.CAPTURE;
-            else if (r < (item_ratio[0] + item_ratio[1] + item_ratio[2] + item_ratio[3] + item_ratio[4] + item_ratio[5] + item_ratio[6] + item_ratio[7]) / sum_ratio) type = ItemType.RAMJET;
-            else type = ItemType.HOLE;
-
-            this.items.push(new Item(x, y, type));
-            this.itemSpawnTimer = ITEM_SPAWN_INTERVAL_MIN + Math.random() * (ITEM_SPAWN_INTERVAL_MAX - ITEM_SPAWN_INTERVAL_MIN);
+            // 出現比率による重み付き抽選（比率配列の添字 = ItemType）。比率の合計が0なら出現させない
+            const ratios = this.spawnParams.itemRatio;
+            const sumRatio = ratios.reduce((acc, val) => acc + val, 0);
+            if (sumRatio > 0) {
+                let r = Math.random() * sumRatio;
+                let type = ItemType.MASS_BOOST;
+                for (let k = 0; k < ratios.length; k++) {
+                    if (ratios[k] <= 0) continue;
+                    type = k as ItemType; // 浮動小数点誤差でループを抜けた場合は最後の有効な種類になる
+                    r -= ratios[k];
+                    if (r < 0) break;
+                }
+                this.items.push(new Item(x, y, type));
+            }
+            const lo = Math.min(this.spawnParams.intervalMin, this.spawnParams.intervalMax);
+            const hi = Math.max(this.spawnParams.intervalMin, this.spawnParams.intervalMax);
+            this.itemSpawnTimer = lo + Math.random() * (hi - lo);
         }
         for (let i = this.items.length - 1; i >= 0; i--) {
             const item = this.items[i]; let itemConsumed = false;

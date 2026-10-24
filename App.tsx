@@ -7,6 +7,7 @@ import VirtualJoystick from './components/VirtualJoystick';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { supabase, isSupabaseConfigured, saveScore, getProfile, updateProfile } from './lib/supabase';
 import { recordGameResult } from './lib/stats';
+import { SpawnParams, createDefaultSpawnParams, isTestModeCode } from './constants/testMode';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,6 +33,12 @@ function App() {
     const lastSavedRef = useRef<{mode: GameMode, difficulty: Difficulty, date: number} | null>(null);
     // 個人記録の二重送信防止用（送信済みのプレイ通番）
     const lastRecordedRunIdRef = useRef<number | null>(null);
+
+    // テストモード（開発者用）。永続化しないため、ページを再読み込みすると解除される
+    const [isTestMode, setIsTestMode] = useState(false);
+    const [testSpawnParams, setTestSpawnParams] = useState<SpawnParams>(createDefaultSpawnParams);
+    // 有効化した時点のセッション（ログイン・ログアウトでユーザーが変わったら解除するため）
+    const testModeSessionRef = useRef<{ userId: string | null; isAnonymous: boolean } | null>(null);
 
     const [userName, setUserName] = useState<string>(localStorage.getItem('graviator_name') || '');
 
@@ -133,9 +140,47 @@ function App() {
     }, [userName, userId]);
 
 
+    // テストモード解除：パラメータをデフォルトに戻し、記録を再開する
+    const exitTestMode = () => {
+        setIsTestMode(false);
+        setTestSpawnParams(createDefaultSpawnParams());
+        testModeSessionRef.current = null;
+    };
+
+    // 名前の保存。テストモードのコードなら有効化し、名前は変更しない。
+    // テストモード中に名前を保存した場合は解除してから保存する（ログイン中のアカウントのまま記録を再開）
+    const handleSaveName = (input: string): 'test-mode' | 'saved' => {
+        if (isTestModeCode(input)) {
+            if (!isTestMode) {
+                testModeSessionRef.current = { userId, isAnonymous };
+                setTestSpawnParams(createDefaultSpawnParams());
+                setIsTestMode(true);
+            }
+            return 'test-mode';
+        }
+        if (isTestMode) exitTestMode();
+        const trimmedName = input.trim() || 'Player';
+        localStorage.setItem('graviator_name', trimmedName);
+        setUserName(trimmedName);
+        return 'saved';
+    };
+
+    // テストモードのパラメータをエンジンに反映（解除時はデフォルトに戻す）
+    useEffect(() => {
+        engineRef.current?.setSpawnParams(isTestMode ? testSpawnParams : null);
+    }, [isTestMode, testSpawnParams]);
+
+    // ログイン・ログアウトでセッションのユーザーが変わったらテストモード解除
+    useEffect(() => {
+        const session = testModeSessionRef.current;
+        if (!isTestMode || !session) return;
+        if (session.userId !== userId || session.isAnonymous !== isAnonymous) exitTestMode();
+    }, [userId, isAnonymous, isTestMode]);
+
     // スコア自動保存ロジック
     useEffect(() => {
         if (!userId || !gameStats) return;
+        if (isTestMode) return; // テストモード中のプレイはランキングに記録しない
 
         // 保存すべき条件:
         // 1. サバイバルモードでVICTORY（勝利）
@@ -163,7 +208,7 @@ function App() {
             // 保存記録更新
             lastSavedRef.current = { mode: gameStats.mode, difficulty: gameStats.difficulty, date: now };
         }
-    }, [gameState, gameStats, userId, userName]);
+    }, [gameState, gameStats, userId, userName, isTestMode]);
 
     // 個人記録の送信（ログイン済み・非匿名のみ。両モードの VICTORY / GAME_OVER が対象）
     useEffect(() => {
@@ -173,9 +218,10 @@ function App() {
         if (lastRecordedRunIdRef.current === gameStats.runId) return;
 
         lastRecordedRunIdRef.current = gameStats.runId;
+        if (isTestMode) return; // テストモード中のプレイは個人記録にも加算しない（送信済み扱いにして後から送らない）
         const cleared = gameState === GameState.VICTORY && gameStats.mode === GameMode.SURVIVAL;
         recordGameResult(gameStats, cleared);
-    }, [gameState, gameStats, userId, isAnonymous]);
+    }, [gameState, gameStats, userId, isAnonymous, isTestMode]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -430,10 +476,13 @@ function App() {
                 showAccount={showAccount}
                 setShowAccount={setShowAccount}
                 userName={userName}
-                setUserName={setUserName}
+                onSaveName={handleSaveName}
                 userId={userId}
                 isAnonymous={isAnonymous}
                 dbStatus={dbStatus}
+                isTestMode={isTestMode}
+                testSpawnParams={testSpawnParams}
+                setTestSpawnParams={setTestSpawnParams}
             />
         </div>
     );

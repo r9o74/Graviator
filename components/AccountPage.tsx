@@ -5,13 +5,19 @@ import { fetchPlayerStats, PlayerStatsSummary } from '../lib/stats';
 import { ITEM_INFOS, ITEM_KEYS } from '../constants/items';
 import { DISTANCE_DISPLAY_SCALE, DISTANCE_UNIT_LABEL } from '../constants/gameConfig';
 import { ItemIcon } from './ItemIcon';
+import { TestModePanel } from './TestModePanel';
+import { SpawnParams } from '../constants/testMode';
 
 interface AccountPageProps {
     onClose: () => void;
     userId: string | null;
     isAnonymous: boolean;
     userName: string;
-    setUserName: (name: string) => void;
+    // 名前の保存（テストモードのコードなら App 側で有効化し 'test-mode' を返す）
+    onSaveName: (input: string) => 'test-mode' | 'saved';
+    isTestMode: boolean;
+    testSpawnParams: SpawnParams;
+    setTestSpawnParams: (params: SpawnParams) => void;
 }
 
 const DIFFICULTY_ROWS: { difficulty: Difficulty; color: string }[] = [
@@ -44,9 +50,11 @@ const StatTile = ({ label, value }: { label: string; value: string }) => (
 );
 
 // アカウントページ：ユーザー情報・名前変更・ログイン/ログアウト・個人記録
-export const AccountPage: React.FC<AccountPageProps> = ({ onClose, userId, isAnonymous, userName, setUserName }) => {
+export const AccountPage: React.FC<AccountPageProps> = ({
+    onClose, userId, isAnonymous, userName, onSaveName, isTestMode, testSpawnParams, setTestSpawnParams
+}) => {
     const [inputName, setInputName] = useState(userName);
-    const [nameSaved, setNameSaved] = useState(false);
+    const [saveLabel, setSaveLabel] = useState<'SAVE' | 'SAVED' | 'TEST ON'>('SAVE');
     const [idCopied, setIdCopied] = useState(false);
     const [stats, setStats] = useState<PlayerStatsSummary | null>(null);
     const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'ready'>('idle');
@@ -67,12 +75,16 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onClose, userId, isAno
     }, [isLoggedIn, userId]);
 
     const handleSaveName = () => {
-        const trimmedName = inputName.trim() || 'Player';
-        localStorage.setItem('graviator_name', trimmedName);
-        setUserName(trimmedName);
-        setInputName(trimmedName);
-        setNameSaved(true);
-        setTimeout(() => setNameSaved(false), 1500);
+        const result = onSaveName(inputName);
+        if (result === 'test-mode') {
+            // コードは名前として保存しない。入力欄は現在の名前に戻す
+            setInputName(userName);
+            setSaveLabel('TEST ON');
+        } else {
+            setInputName(inputName.trim() || 'Player');
+            setSaveLabel('SAVED');
+        }
+        setTimeout(() => setSaveLabel('SAVE'), 1500);
     };
 
     const handleCopyId = async () => {
@@ -127,7 +139,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onClose, userId, isAno
                                 onClick={handleSaveName}
                                 className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-orbitron font-bold text-[10px] tracking-widest rounded-lg transition-all"
                             >
-                                {nameSaved ? 'SAVED' : 'SAVE'}
+                                {saveLabel}
                             </button>
                         </div>
                         <p className="text-[10px] text-white/30 mt-1 font-rajdhani">設定した名前はランキングに表示されます (最大20文字)</p>
@@ -143,6 +155,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onClose, userId, isAno
                     ) : null}
                 </div>
 
+                {/* テストモード中：記録欄の位置にパラメータ設定を表示 */}
+                {isTestMode && <TestModePanel params={testSpawnParams} onChange={setTestSpawnParams} />}
+
                 {!isLoggedIn ? (
                     // 匿名時：記録欄の代わりにログイン案内
                     <div className="bg-white/5 rounded-xl p-4 border border-blue-500/30 text-center space-y-3">
@@ -156,7 +171,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onClose, userId, isAno
                             LOGIN WITH GOOGLE
                         </button>
                     </div>
-                ) : status === 'loading' || status === 'idle' ? (
+                ) : isTestMode ? null : status === 'loading' || status === 'idle' ? (
                     <p className="text-center text-white/40 font-orbitron text-xs tracking-[0.3em] py-6 animate-pulse">LOADING...</p>
                 ) : status === 'error' || !stats ? (
                     <p className="text-center text-red-400/80 text-xs font-rajdhani py-6">記録を読み込めませんでした</p>

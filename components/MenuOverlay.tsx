@@ -4,6 +4,7 @@ import { ItemGuide } from './ItemGuide';
 import { Leaderboard } from './Leaderboard';
 import { AccountPage } from './AccountPage';
 import { TIPS_DATA } from '../constants/tips';
+import { SpawnParams } from '../constants/testMode';
 
 interface MenuOverlayProps {
     gameState: GameState;
@@ -20,10 +21,13 @@ interface MenuOverlayProps {
     showAccount?: boolean;
     setShowAccount?: (show: boolean) => void;
     userName?: string;
-    setUserName?: (name: string) => void;
+    onSaveName?: (input: string) => 'test-mode' | 'saved';
     userId?: string | null;
     isAnonymous?: boolean;
     dbStatus?: 'checking' | 'connected' | 'error' | 'offline';
+    isTestMode?: boolean;
+    testSpawnParams?: SpawnParams;
+    setTestSpawnParams?: (params: SpawnParams) => void;
 }
 
 const MenuOverlay: React.FC<MenuOverlayProps> = ({ 
@@ -41,10 +45,13 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     showAccount = false,
     setShowAccount,
     userName = 'Player',
-    setUserName,
+    onSaveName,
     userId,
     isAnonymous = true,
-    dbStatus
+    dbStatus,
+    isTestMode = false,
+    testSpawnParams,
+    setTestSpawnParams
 }) => {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
 
@@ -142,6 +149,15 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
     return (
         <div className={`absolute inset-0 flex items-center justify-center overflow-hidden transition-all duration-1000 ${isMenu ? 'bg-[#050505]' : 'bg-black/20 backdrop-blur-sm'} z-[100]`}>
+            {/* テストモード表示（左上） */}
+            {isTestMode && (
+                <div className="absolute top-4 left-4 md:top-6 md:left-6 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/60 z-[110]">
+                    <span className="text-[10px] font-orbitron font-bold text-amber-300 tracking-[0.15em] uppercase">
+                        Test Mode · 記録停止中
+                    </span>
+                </div>
+            )}
+
             {/* DBステータス表示 (ホーム画面右上) */}
             {isMenu && dbStatus && (
                 <div className="absolute top-4 right-4 md:top-6 md:right-6 flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl z-[110]">
@@ -189,13 +205,16 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                             currentMode={gameStats?.mode}
                             currentDifficulty={selectedDifficulty}
                         />
-                    ) : showAccount && setShowAccount && setUserName ? (
+                    ) : showAccount && setShowAccount && onSaveName && setTestSpawnParams && testSpawnParams ? (
                         <AccountPage
                             onClose={() => setShowAccount(false)}
                             userId={userId ?? null}
                             isAnonymous={isAnonymous}
                             userName={userName}
-                            setUserName={setUserName}
+                            onSaveName={onSaveName}
+                            isTestMode={isTestMode}
+                            testSpawnParams={testSpawnParams}
+                            setTestSpawnParams={setTestSpawnParams}
                         />
                     ) : (
                         <>
@@ -297,8 +316,17 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
 
                                 {isMenu && (
                                     <div className="flex gap-2 w-full mt-0.5 md:mt-1">
-                                        <button onClick={() => setShowLeaderboard(true)} className="flex-1 px-20 py-2 text-white hover:text-cyan-400 font-orbitron font-bold text-[9px] md:text-[10px] tracking-widest uppercase transition-all bg-white/5 hover:bg-white/20 rounded-xl md:rounded-2xl border border-white/5 hover:border-cyan-500/30">
-                                            RANKING
+                                        {/* ランキングボタン（表彰台アイコン） */}
+                                        <button
+                                            onClick={() => setShowLeaderboard(true)}
+                                            className="flex-1 py-2 text-white/80 hover:text-cyan-400 transition-all bg-white/5 hover:bg-white/20 rounded-xl md:rounded-2xl border border-white/5 hover:border-cyan-500/30 flex items-center justify-center"
+                                            title="Ranking"
+                                            aria-label="Ranking"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21v-6h5v6M9 21V10h6v11M15 21v-4h5v4" />
+                                                <path fill="currentColor" stroke="none" d="M12 2.4L12.65 4.11L14.47 4.2L13.05 5.34L13.53 7.1L12 6.1L10.47 7.1L10.95 5.34L9.53 4.2L11.35 4.11Z" />
+                                            </svg>
                                         </button>
 
                                         {/* アカウントボタン（人型アイコン） */}
