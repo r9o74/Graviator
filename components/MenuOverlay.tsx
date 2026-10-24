@@ -3,6 +3,8 @@ import { GameState, GameMode, GameStats, Difficulty } from '../types';
 import { ItemGuide } from './ItemGuide';
 import { Leaderboard } from './Leaderboard';
 import { AccountPage } from './AccountPage';
+import { ItemIcon } from './ItemIcon';
+import { ITEM_INFOS, ITEM_KEYS } from '../constants/items';
 import { TIPS_DATA } from '../constants/tips';
 import { SpawnParams } from '../constants/testMode';
 
@@ -54,6 +56,10 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
     setTestSpawnParams
 }) => {
     const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
+    const [showItemDetail, setShowItemDetail] = useState(false); // リザルト画面のアイテム別使用数の開閉
+
+    // 画面（状態）が切り替わるたびに閉じる。次のリザルトを開いたまま表示しない
+    useEffect(() => { setShowItemDetail(false); }, [gameState]);
 
     // 背景アニメーション用のマウス位置追跡
     useEffect(() => {
@@ -268,10 +274,39 @@ const MenuOverlay: React.FC<MenuOverlayProps> = ({
                                     </div>
                                     <div className="bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
                                         <p className="text-white/40 font-orbitron text-[8px] md:text-[10px] tracking-[0.15em] uppercase">使用アイテム数</p>
-                                        <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
-                                            {gameStats.itemsUsed}
-                                        </p>
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <p className="text-white font-orbitron text-sm md:text-lg font-bold tracking-wider">
+                                                {gameStats.itemsUsed}
+                                            </p>
+                                            <button
+                                                onClick={() => setShowItemDetail(v => !v)}
+                                                aria-label="Item usage details"
+                                                aria-expanded={showItemDetail}
+                                                className={`transition-colors ${showItemDetail ? 'text-cyan-400' : 'text-white/40 hover:text-white/80'}`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <circle cx="12" cy="12" r="9" strokeWidth={2} />
+                                                    <path strokeLinecap="round" strokeWidth={2} d="M12 11v5" />
+                                                    <circle cx="12" cy="7.8" r="0.6" fill="currentColor" strokeWidth={1.2} />
+                                                </svg>
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* アイテム別の使用数（アイコン＋数字のみ） */}
+                                    {showItemDetail && (
+                                        <div className="col-span-3 grid grid-cols-5 gap-x-1 gap-y-2 bg-white/[0.02] border border-white/5 rounded-xl md:rounded-2xl py-2 px-1">
+                                            {ITEM_INFOS.map(info => {
+                                                const count = gameStats.itemCounts?.[ITEM_KEYS[info.type]] ?? 0;
+                                                return (
+                                                    <div key={info.type} className={`flex flex-col items-center ${count === 0 ? 'opacity-30' : ''}`}>
+                                                        <ItemIcon type={info.type} className="w-8 h-8 md:w-9 md:h-9" />
+                                                        <span className="text-white font-orbitron text-xs md:text-sm font-bold">{count}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
